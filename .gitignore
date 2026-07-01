@@ -1,0 +1,12 @@
+# Python
+backend/venv/
+backend/__pycache__/
+
+# Node
+extension/node_modules/
+extension/out/
+
+# VS Code
+.vscode/
+
+__pycache__/

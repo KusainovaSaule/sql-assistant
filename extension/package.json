@@ -1,0 +1,32 @@
+{
+  "name": "sql-assistant",
+  "displayName": "SQL Assistant",
+  "version": "0.0.1",
+  "publisher": "your-team",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "activationEvents": [
+    "onCommand:sqlAssistant.analyzeQuery"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "sqlAssistant.analyzeQuery",
+        "title": "AI: Analyze Query"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./"
+  },
+  "dependencies": {
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.85.0"
+  }
+}
