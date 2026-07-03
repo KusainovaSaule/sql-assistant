@@ -1,32 +1,95 @@
 {
   "name": "sql-assistant",
   "displayName": "SQL Assistant",
+  "description": "SQL assistant with static analysis and GigaChat backend",
   "version": "0.0.1",
-  "publisher": "your-team",
+  "publisher": "your-name",
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.90.0"
   },
+  "categories": [
+    "Other"
+  ],
   "activationEvents": [
-    "onCommand:sqlAssistant.analyzeQuery"
+    "onCommand:sqlAssistant.analyzeQuery",
+    "onCommand:sqlAssistant.optimizeQuery",
+    "onCommand:sqlAssistant.formatQuery",
+    "onCommand:sqlAssistant.showSchema"
   ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
         "command": "sqlAssistant.analyzeQuery",
-        "title": "AI: Analyze Query"
+        "title": "AI: Analyze Query",
+        "category": "SQL Assistant"
+      },
+      {
+        "command": "sqlAssistant.optimizeQuery",
+        "title": "AI: Optimize Query",
+        "category": "SQL Assistant"
+      },
+      {
+        "command": "sqlAssistant.formatQuery",
+        "title": "AI: Format Query",
+        "category": "SQL Assistant"
+      },
+      {
+        "command": "sqlAssistant.showSchema",
+        "title": "AI: Show DB Schema",
+        "category": "SQL Assistant"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "SQL Assistant",
+      "properties": {
+        "sqlAssistant.db.host": {
+          "type": "string",
+          "default": "127.0.0.1",
+          "description": "Database host"
+        },
+        "sqlAssistant.db.port": {
+          "type": "number",
+          "default": 5432,
+          "description": "Database port"
+        },
+        "sqlAssistant.db.user": {
+          "type": "string",
+          "default": "postgres",
+          "description": "Database user"
+        },
+        "sqlAssistant.db.password": {
+          "type": "string",
+          "default": "",
+          "description": "Database password"
+        },
+        "sqlAssistant.db.database": {
+          "type": "string",
+          "default": "postgres",
+          "description": "Database name"
+        },
+        "sqlAssistant.db.type": {
+          "type": "string",
+          "enum": [
+            "postgres",
+            "mysql",
+            "clickhouse"
+          ],
+          "default": "postgres",
+          "description": "Database type"
+        }
+      }
+    }
   },
   "scripts": {
-    "compile": "tsc -p ./"
-  },
-  "dependencies": {
-    "axios": "^1.6.0"
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
   },
   "devDependencies": {
-    "typescript": "^5.0.0",
-    "@types/node": "^18.0.0",
-    "@types/vscode": "^1.85.0"
+    "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^3.9.2",
+    "typescript": "^5.4.0"
   }
 }

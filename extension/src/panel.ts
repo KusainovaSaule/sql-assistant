@@ -1,53 +1,111 @@
 import * as vscode from "vscode";
 
-export class SqlPanel {
-  public static current: SqlPanel | undefined;
+export interface PanelState {
+  mode: "analysis" | "optimization" | "schema";
+  staticResult?: any;
+  aiResult?: any;
+  optimizeResult?: any;
+  schemaInfo?: any;
+  error?: string;
+}
+
+export class SqlAssistantPanel {
+  public static currentPanel: SqlAssistantPanel | undefined;
   private readonly panel: vscode.WebviewPanel;
+  private disposables: vscode.Disposable[] = [];
+  private state: PanelState = { mode: "analysis" };
 
-  private constructor(panel: vscode.WebviewPanel) {
-    this.panel = panel;
-    this.panel.webview.html = this.getHtml();
-  }
-
-  static createOrShow() {
+  public static createOrShow(extensionUri: vscode.Uri) {
     const column = vscode.ViewColumn.Beside;
 
-    if (SqlPanel.current) {
-      SqlPanel.current.panel.reveal(column);
-      return SqlPanel.current;
+    if (SqlAssistantPanel.currentPanel) {
+      SqlAssistantPanel.currentPanel.panel.reveal(column);
+      return SqlAssistantPanel.currentPanel;
     }
 
     const panel = vscode.window.createWebviewPanel(
-      "sqlAssistant",
+      "sqlAssistantPanel",
       "SQL Assistant",
       column,
-      { enableScripts: true }
+      {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+      }
     );
 
-    SqlPanel.current = new SqlPanel(panel);
-    return SqlPanel.current;
+    SqlAssistantPanel.currentPanel = new SqlAssistantPanel(panel, extensionUri);
+    return SqlAssistantPanel.currentPanel;
   }
 
-  update(result: any) {
-    this.panel.webview.postMessage({ type: "result", payload: result });
+  private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
+    this.panel = panel;
+
+    const webview = this.panel.webview;
+    const htmlUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(extensionUri, "media", "panel.html")
+    );
+
+    this.panel.webview.html = this.getHtml(htmlUri);
+
+    this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
+
+    this.panel.webview.onDidReceiveMessage(
+      (message) => {
+        if (message.command === "applyOptimizedQuery") {
+          this.applyOptimizedQuery(message.text);
+        }
+      },
+      null,
+      this.disposables
+    );
   }
 
-  private getHtml() {
+  public updateState(newState: Partial<PanelState>) {
+    this.state = { ...this.state, ...newState };
+    this.panel.webview.postMessage({
+      command: "updateState",
+      state: this.state,
+    });
+  }
+
+  private applyOptimizedQuery(text: string) {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+      vscode.window.showErrorMessage("Нет активного редактора.");
+      return;
+    }
+
+    editor.edit((editBuilder) => {
+      const selection = editor.selection;
+      if (!selection.isEmpty) {
+        editBuilder.replace(selection, text);
+      } else {
+        editBuilder.insert(selection.active, text);
+      }
+    });
+  }
+
+  private getHtml(htmlUri: vscode.Uri): string {
+    // panel.html будет загружаться через src в WebView
     return `
-      <html>
-      <body>
-        <h2>SQL Analysis</h2>
-        <div id="content"></div>
-        <script>
-          const vscode = acquireVsCodeApi();
-          window.addEventListener("message", event => {
-            const res = event.data.payload;
-            document.getElementById("content").innerHTML =
-              "<pre>" + JSON.stringify(res, null, 2) + "</pre>";
-          });
-        </script>
-      </body>
-      </html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>SQL Assistant</title>
+  <link rel="stylesheet" href="${htmlUri.toString().replace("panel.html", "panel.css")}">
+</head>
+<body>
+  <div id="root"></div>
+  <script src="${htmlUri.toString().replace("panel.html", "panel.js")}"></script>
+</body>
+</html>
     `;
+  }
+
+  public dispose() {
+    SqlAssistantPanel.currentPanel = undefined;
+    this.panel.dispose();
+    this.disposables.forEach((d) => d.dispose());
   }
 }
