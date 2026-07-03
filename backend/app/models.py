@@ -1,10 +1,16 @@
 
-from pydantic import BaseModel
+from pydantic import BaseModel, SecretStr
 from typing import List, Optional
 
-class SqlRequest(BaseModel):
+class DBConnection(BaseModel):
+    address: str
+    user: str
+    password: SecretStr
+
+class SQLRequest(BaseModel):
     sql: str
-    db_schema: Optional[dict] = None # NOTE: Maybe replace with DB address and credentials?
+    dialect: Optional[str] = None
+    db: Optional[DBConnection] = None
 
 class FormatResponse(BaseModel):
     formatted_sql: str
