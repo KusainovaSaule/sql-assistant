@@ -4,7 +4,7 @@ from typing import List, Optional
 
 class SqlRequest(BaseModel):
     sql: str
-    db_schema: Optional[dict] = None
+    db_schema: Optional[dict] = None # NOTE: Maybe replace with DB address and credentials?
 
 class FormatResponse(BaseModel):
     formatted_sql: str
