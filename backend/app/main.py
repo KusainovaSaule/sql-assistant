@@ -1,8 +1,9 @@
+from typing import Any
+
 from fastapi import FastAPI
 import sqlglot
-from backend.app.models import AIAnalyzeResponse, AIOptimizeResponse, FormatResponse, HistoryResponse, StaticAnalyzeResponse
-from models import *
-from app.analysis.static_analyzer import analyze_sql_static
+from .models import AIAnalyzeResponse, AIOptimizeResponse, FormatResponse, HistoryResponse, StaticAnalyzeResponse, SqlRequest
+from .analysis.static_analyzer import analyze_sql_static
 
 app = FastAPI(title="SQL Assistant API")
 
@@ -11,7 +12,7 @@ app = FastAPI(title="SQL Assistant API")
 async def format_sql(req: SqlRequest) -> FormatResponse:
     """Статический анализ и форматирование (без LLM)."""
     try:
-        formatted = sqlglot.transpile(req.sql, pretty=True)[0]
+        formatted: str = sqlglot.transpile(req.sql, pretty=True)[0]
     except Exception as e:
         return FormatResponse(formatted_sql=req.sql, error=str(e))
     return FormatResponse(formatted_sql=formatted)
@@ -19,7 +20,7 @@ async def format_sql(req: SqlRequest) -> FormatResponse:
 @app.post("/api/v1/sql/analyze/static", response_model=StaticAnalyzeResponse)
 async def analyze_static(req: SqlRequest) -> StaticAnalyzeResponse:
     """Быстрый парсинг запроса для выявления базовых антипаттернов."""
-    problems = analyze_sql_static(req.sql)
+    problems: list[dict[str, Any]] = analyze_sql_static(req.sql) # TODO: implement analyser
     return StaticAnalyzeResponse(problems=problems)
 
 @app.post("/api/v1/sql/analyze/ai", response_model=AIAnalyzeResponse)
