@@ -1,0 +1,20 @@
+{
+    "_type": "request",
+    "method": "POST",
+    "url": "http://127.0.0.1:8000/api/v1/sql/format",
+    "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"sql\": \"select * from users join orders on users.id = orders.user_id where orders.amount > 100\"\n}"
+    },
+    "headers": [
+        {
+            "name": "Content-Type",
+            "value": "application/json"
+        }
+    ],
+    "parameters": [],
+    "authentication": {
+        "type": "No Auth"
+    },
+    "sortOrder": 2
+}
