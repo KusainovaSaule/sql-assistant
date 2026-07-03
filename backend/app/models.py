@@ -3,7 +3,7 @@ from pydantic import BaseModel, SecretStr
 from typing import List, Optional
 
 class DBConnection(BaseModel):
-    address: str
+    path: str
     user: str
     password: SecretStr
 
@@ -31,4 +31,3 @@ class AIOptimizeResponse(BaseModel):
 
 class HistoryResponse(BaseModel):
     history: List[dict]
-
