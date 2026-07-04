@@ -1,9 +1,11 @@
-from typing import Optional
+from typing import Optional, Sequence, cast
 
 import sqlglot
 from sqlglot.errors import ParseError, OptimizeError
-from sqlglot import optimizer
+from sqlglot.optimizer.qualify import qualify
+import sqlglot.expressions as exp
 
+from .connect import create_db_connection
 from .models import DBConnection, StaticAnalyzeProblem
 
 
@@ -11,7 +13,16 @@ type Column = dict[str, str]
 type Schema = dict[str, Column]    
 
 async def get_schema(credentials: DBConnection, dialect: str) -> Schema:
-    raise NotImplementedError
+    schema: Schema = {}
+    
+    async with create_db_connection(credentials, dialect) as db_wrapper:
+        columns: Sequence[tuple[str, str, str]] = await db_wrapper.fetch_schema_columns()
+        for table, column, dtype in columns:
+            if table not in schema:
+                schema[table] = {}
+            schema[table][column] = dtype
+                    
+    return schema
 
 def analyze_sql_static(sql: str, dialect: Optional[str], schema: Optional[Schema] = None) -> list[StaticAnalyzeProblem]:
     problems: list[StaticAnalyzeProblem] = []
@@ -32,9 +43,17 @@ def analyze_sql_static(sql: str, dialect: Optional[str], schema: Optional[Schema
         return problems
 
     # Semantic validation (if schema is provided)
-    if schema and expression:
+    if schema is not None and expression:
         try:
-            optimizer.optimize(expression, schema=schema, dialect=dialect)
+            # Validate that tables exist
+            
+            for table in expression.find_all(exp.Table):
+                table_name = table.name
+                if table_name not in schema:
+                    raise OptimizeError(f"Table '{table_name}' does not exist in the schema.")
+
+            # Find column-level issues
+            expression = qualify(expression, schema=cast(dict[str, object], schema), dialect=dialect)
         except OptimizeError as e:
             problems.append(
                 StaticAnalyzeProblem(
