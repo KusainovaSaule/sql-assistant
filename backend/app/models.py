@@ -16,12 +16,18 @@ class FormatResponse(BaseModel):
     formatted_sql: str
     error: Optional[str] = None
 
+class StaticAnalyzeProblem(BaseModel):
+    code: str
+    message: str
+    severity: str
+    recommendation: str
+
 class StaticAnalyzeResponse(BaseModel):
-    problems: List[dict]
+    problems: List[StaticAnalyzeProblem]
 
 class AIAnalyzeResponse(BaseModel):
     logic_description: str
-    problems: List[dict]
+    problems: List[StaticAnalyzeProblem]
     recommendations: List[str]
 
 class AIOptimizeResponse(BaseModel):

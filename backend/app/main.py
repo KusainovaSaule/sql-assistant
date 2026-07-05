@@ -1,9 +1,9 @@
-from typing import Any
+from typing import Optional
 
 from fastapi import FastAPI
 from .format import format
-from .models import AIAnalyzeResponse, AIOptimizeResponse, FormatResponse, HistoryResponse, StaticAnalyzeResponse, SQLRequest
-from .analysis.static_analyzer import analyze_sql_static
+from .models import AIAnalyzeResponse, AIOptimizeResponse, FormatResponse, HistoryResponse, StaticAnalyzeProblem, StaticAnalyzeResponse, SQLRequest
+from .analysis import Schema, analyze_sql_static, get_schema
 
 app = FastAPI(title="SQL Assistant API")
 
@@ -16,14 +16,21 @@ async def format_sql(req: SQLRequest) -> FormatResponse:
 @app.post("/api/v1/sql/analyze/static", response_model=StaticAnalyzeResponse)
 async def analyze_static(req: SQLRequest) -> StaticAnalyzeResponse:
     """Быстрый парсинг запроса для выявления базовых антипаттернов."""
-    problems: list[dict[str, Any]] = analyze_sql_static(req.sql) # TODO: implement analyser
+
+    schema: Optional[Schema] = None
+    if (req.db and req.dialect):
+        schema = await get_schema(req.db, req.dialect)
+    problems: list[StaticAnalyzeProblem] = analyze_sql_static(req.sql, req.dialect, schema)
     return StaticAnalyzeResponse(problems=problems)
 
 @app.post("/api/v1/sql/analyze/ai", response_model=AIAnalyzeResponse)
 async def analyze_ai(req: SQLRequest) -> AIAnalyzeResponse:
     """Формирует промпт с учетом статического анализа и схемы БД, отправляет в GigaChat."""
     # TODO: Интеграция с GigaChat API
-    static_problems = analyze_sql_static(req.sql)
+    schema: Optional[Schema] = None
+    if (req.db and req.dialect):
+        schema = await get_schema(req.db, req.dialect)
+    static_problems: list[StaticAnalyzeProblem] = analyze_sql_static(req.sql, req.dialect, schema)
     return AIAnalyzeResponse(
         logic_description="Здесь будет описание логики от GigaChat.",
         problems=static_problems, # Пока возвращаем статические проблемы
