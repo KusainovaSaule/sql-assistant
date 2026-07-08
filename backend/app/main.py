@@ -9,10 +9,11 @@ from .cache import AsyncCacheProtocol, SQLiteCache
 from .format import format
 from .models import AIAnalyzeResponse, AIOptimizeResponse, FormatResponse, HistoryResponse, StaticAnalyzeProblem, StaticAnalyzeResponse, SQLRequest
 from .analysis import Schema, analyze_sql_static, get_schema
-from .gigachat_client import analyze_query_with_ai, optimize_query_with_ai # Импорт AI-клиента
+from .gigachat_client import analyze_query_with_ai, optimize_query_with_ai
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    # Init cache object for dependency injection
     cache: AsyncCacheProtocol = await SQLiteCache.create()
     app.state.cache = cache
     yield
