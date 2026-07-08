@@ -33,6 +33,8 @@ class AsyncCacheProtocol(Protocol):
     ) -> None: ...
 
     async def get_recommendation(self, operation: str, sql: str) -> Optional[dict]: ...
+    
+    async def get_all_recommendations(self, limit: int = ...) -> list[dict]: ...
 
 class SQLiteCache:
     """SQLite-backed implementation of CacheProtocol."""
@@ -136,3 +138,20 @@ class SQLiteCache:
             )
             row = await cursor.fetchone()
         return json.loads(row[0]) if row else None
+
+    async def get_all_recommendations(self, limit: int = 50) -> list[dict]:
+        async with self._connect() as conn:
+            cursor = await conn.execute(
+                "SELECT operation, sql, result_json, created_at FROM recommendation_history ORDER BY created_at DESC LIMIT ?",
+                (limit,)
+            )
+            rows = await cursor.fetchall()
+        
+        return [
+            {
+                "operation": r[0],
+                "sql": r[1],
+                "result": json.loads(r[2]),
+                "created_at": r[3]
+            } for r in rows
+        ]
