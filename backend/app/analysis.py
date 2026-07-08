@@ -5,15 +5,22 @@ from sqlglot.errors import ParseError, OptimizeError
 from sqlglot.optimizer.qualify import qualify
 import sqlglot.expressions as exp
 
+from .cache import AsyncCacheProtocol
+
 from .connect import create_db_connection
 from .models import DBConnection, StaticAnalyzeProblem
 
 
 type Column = dict[str, str]
-type Schema = dict[str, Column]    
+type Schema = dict[str, Column]
 
-async def get_schema(credentials: DBConnection, dialect: str) -> Schema:
-    schema: Schema = {}
+async def get_schema(credentials: DBConnection, dialect: str, cache: AsyncCacheProtocol) -> Schema:
+    schema: Optional[Schema] = await cache.get_schema(credentials, dialect)
+
+    if (schema is not None):
+        return schema
+    
+    schema = {}
     
     async with create_db_connection(credentials, dialect) as db_wrapper:
         columns: Sequence[tuple[str, str, str]] = await db_wrapper.fetch_schema_columns()
@@ -21,12 +28,14 @@ async def get_schema(credentials: DBConnection, dialect: str) -> Schema:
             if table not in schema:
                 schema[table] = {}
             schema[table][column] = dtype
-                    
+    
+    await cache.set_schema(credentials, dialect, schema)
+
     return schema
 
 def analyze_sql_static(sql: str, dialect: Optional[str], schema: Optional[Schema] = None) -> list[StaticAnalyzeProblem]:
     problems: list[StaticAnalyzeProblem] = []
-    
+
     try:
         # Syntax validation (AST parsing)
         expression: sqlglot.Expr = sqlglot.parse_one(sql, read=dialect)
