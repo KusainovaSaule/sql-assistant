@@ -98,7 +98,7 @@ async def optimize_query_with_ai(sql: str, schema: Optional[Schema], cache: Asyn
     
     async def _call_giga() -> str:
         with _get_giga_client() as giga:
-            response: ChatCompletion = giga.chat(prompt)
+            response: ChatCompletion = await giga.achat(prompt)
             return response.choices[0].message.content
             
     raw_response = await _call_giga()
