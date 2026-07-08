@@ -39,23 +39,10 @@ async def analyze_ai(req: SQLRequest, cache: CacheDep) -> AIAnalyzeResponse:
         schema = await get_schema(req.db, req.dialect, cache)
         
     static_problems: list[StaticAnalyzeProblem] = analyze_sql_static(req.sql, req.dialect, schema)
-    
+
     try:
         # Вызов GigaChat
-        ai_data = await analyze_query_with_ai(req.sql, schema, static_problems)
-        
-        # Маппим ответ от LLM в нашу Pydantic модель
-        problems = [StaticAnalyzeProblem(**p) for p in ai_data.get("problems", [])]
-        
-        response = AIAnalyzeResponse(
-            logic_description=ai_data.get("logic_description", ""),
-            problems=problems,
-            recommendations=ai_data.get("recommendations", [])
-        )
-        
-        # Сохраняем в историю SQLite
-        await cache.add_recommendation("analyze_ai", req.sql, response.model_dump())
-        
+        response: AIAnalyzeResponse = await analyze_query_with_ai(req.sql, schema, static_problems, cache)
         return response
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка GigaChat: {str(e)}")
@@ -67,18 +54,7 @@ async def optimize_ai(req: SQLRequest, cache: CacheDep) -> AIOptimizeResponse:
         schema = await get_schema(req.db, req.dialect, cache)
         
     try:
-        # Вызов GigaChat
-        ai_data = await optimize_query_with_ai(req.sql, schema)
-        
-        response = AIOptimizeResponse(
-            optimized_sql=ai_data.get("optimized_sql", req.sql),
-            explanation=ai_data.get("explanation", ""),
-            expected_effect=ai_data.get("expected_effect", "")
-        )
-        
-        # Сохраняем в историю SQLite
-        await cache.add_recommendation("optimize_ai", req.sql, response.model_dump())
-        
+        response: AIOptimizeResponse = await optimize_query_with_ai(req.sql, schema, cache)
         return response
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка GigaChat: {str(e)}")

@@ -1,10 +1,11 @@
 import os
 import json
-import asyncio
-from typing import Optional
+from typing import Any, Optional
 from dotenv import load_dotenv
-from gigachat import GigaChat
-from .models import StaticAnalyzeProblem
+from gigachat import ChatCompletion, GigaChat
+
+from .cache import AsyncCacheProtocol
+from .models import AIAnalyzeResponse, AIOptimizeResponse, StaticAnalyzeProblem
 from .analysis import Schema
 
 load_dotenv()
@@ -54,26 +55,63 @@ def _build_optimize_prompt(sql: str, schema: Optional[Schema]) -> str:
 }"""
     return prompt
 
-async def analyze_query_with_ai(sql: str, schema: Optional[Schema], static_problems: list[StaticAnalyzeProblem]) -> dict:
+async def analyze_query_with_ai(sql: str, schema: Optional[Schema], static_problems: list[StaticAnalyzeProblem],
+                                cache: AsyncCacheProtocol) -> AIAnalyzeResponse:
+    cached_response: Optional[dict[str, Any]] = await cache.get_recommendation("analyze_ai", sql)
+
+    if (cached_response is not None):
+        return AIAnalyzeResponse.model_validate(cached_response)
+    
     prompt = _build_analysis_prompt(sql, schema, static_problems)
     
-    def _call_giga():
+    async def _call_giga() -> str:
         with _get_giga_client() as giga:
-            response = giga.chat(prompt)
+            response: ChatCompletion = await giga.achat(prompt)
             return response.choices[0].message.content
             
-    raw_response = await asyncio.to_thread(_call_giga)
+    raw_response = await _call_giga()
     clean_json = raw_response.strip().replace("```json", "").replace("```", "").strip()
-    return json.loads(clean_json)
 
-async def optimize_query_with_ai(sql: str, schema: Optional[Schema]) -> dict:
+    ai_data: dict[str, Any] = json.loads(clean_json)
+
+    problems = [StaticAnalyzeProblem(**p) for p in ai_data.get("problems", [])]
+        
+    response = AIAnalyzeResponse(
+        logic_description=ai_data.get("logic_description", ""),
+        problems=problems,
+        recommendations=ai_data.get("recommendations", [])
+    )
+    
+    # Сохраняем в историю SQLite
+    await cache.add_recommendation("analyze_ai", sql, response.model_dump())
+
+    return response
+
+
+async def optimize_query_with_ai(sql: str, schema: Optional[Schema], cache: AsyncCacheProtocol) -> AIOptimizeResponse:
+    cached_response: Optional[dict[str, Any]] = await cache.get_recommendation("optimize_ai", sql)
+
+    if (cached_response is not None):
+        return AIOptimizeResponse.model_validate(cached_response)
+    
     prompt = _build_optimize_prompt(sql, schema)
     
-    def _call_giga():
+    async def _call_giga() -> str:
         with _get_giga_client() as giga:
-            response = giga.chat(prompt)
+            response: ChatCompletion = giga.chat(prompt)
             return response.choices[0].message.content
             
-    raw_response = await asyncio.to_thread(_call_giga)
+    raw_response = await _call_giga()
     clean_json = raw_response.strip().replace("```json", "").replace("```", "").strip()
-    return json.loads(clean_json)
+
+    ai_data = json.loads(clean_json)
+
+    response = AIOptimizeResponse(
+        optimized_sql=ai_data.get("optimized_sql", sql),
+        explanation=ai_data.get("explanation", ""),
+        expected_effect=ai_data.get("expected_effect", "")
+    )
+    
+    # Сохраняем в историю SQLite
+    await cache.add_recommendation("optimize_ai", sql, response.model_dump())
+    return response
