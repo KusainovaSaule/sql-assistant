@@ -3,10 +3,10 @@
     "method": "POST",
     "body": {
         "mimeType": "application/json",
-        "text": "{\n  \"sql\": \"select * form users join orders on users.id = orders.user_id\"\n}"
+        "text": "{\n  \"sql\": \"SELECT * FROM products WHERE category_id = 6 OR category_id = 10 OR category_id = 15\",\n  \"dialect\": \"postgresql\"\n}"
     },
-    "url": "http://127.0.0.1:8000/api/v1/sql/analyze/static",
-    "sortOrder": 2,
+    "url": "http://localhost:8000/api/v1/sql/optimize/ai",
+    "sortOrder": 0,
     "parameters": [],
     "headers": [
         {
