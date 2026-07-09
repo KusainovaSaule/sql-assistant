@@ -5,6 +5,7 @@ import {
   optimizeQuery,
   formatQuery,
   getSchema,
+  getHistory,
   DbConfig,
 } from "./apiClient";
 import { SqlAssistantPanel } from "./panel";
@@ -41,6 +42,11 @@ function getDbConfig(): DbConfig | undefined {
   };
 }
 
+function getDialect(): string | undefined {
+  const cfg = vscode.workspace.getConfiguration("sqlAssistant");
+  return cfg.get<string>("db.dialect") || "postgres";
+}
+
 export function activate(context: vscode.ExtensionContext) {
   const analyzeCmd = vscode.commands.registerCommand(
     "sqlAssistant.analyzeQuery",
@@ -65,16 +71,13 @@ export function activate(context: vscode.ExtensionContext) {
         error: undefined,
       });
 
-      vscode.window.setStatusBarMessage("SQL Assistant: статический анализ...", 3000);
-
       try {
-        const staticResult = await analyzeStatic(sql);
+        const dialect = getDialect();
+        const staticResult = await analyzeStatic(sql, dialect);
         panel.updateState({ staticResult });
 
-        vscode.window.setStatusBarMessage("SQL Assistant: AI-анализ...", 3000);
-
         const config = getDbConfig();
-        const aiResult = await analyzeAi(sql, config);
+        const aiResult = await analyzeAi(sql, config, dialect);
         panel.updateState({ aiResult });
       } catch (err: any) {
         panel.updateState({
@@ -109,11 +112,10 @@ export function activate(context: vscode.ExtensionContext) {
         error: undefined,
       });
 
-      vscode.window.setStatusBarMessage("SQL Assistant: оптимизация запроса...", 3000);
-
       try {
         const config = getDbConfig();
-        const result = await optimizeQuery(sql, config);
+        const dialect = getDialect();
+        const result = await optimizeQuery(sql, config, dialect);
         panel.updateState({ optimizeResult: result });
       } catch (err: any) {
         panel.updateState({
@@ -140,8 +142,6 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.showErrorMessage("Выделите SQL-запрос или откройте файл с SQL.");
         return;
       }
-
-      vscode.window.setStatusBarMessage("SQL Assistant: форматирование запроса...", 3000);
 
       try {
         const result = await formatQuery(sql);
@@ -175,8 +175,6 @@ export function activate(context: vscode.ExtensionContext) {
         error: undefined,
       });
 
-      vscode.window.setStatusBarMessage("SQL Assistant: загрузка схемы БД...", 3000);
-
       try {
         const config = getDbConfig();
         if (!config) {
@@ -202,7 +200,31 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
-  context.subscriptions.push(analyzeCmd, optimizeCmd, formatCmd, schemaCmd);
+  const historyCmd = vscode.commands.registerCommand(
+    "sqlAssistant.showHistory",
+    async () => {
+      const panel = SqlAssistantPanel.createOrShow(context.extensionUri);
+      panel.updateState({
+        mode: "history",
+        historyResult: undefined,
+        error: undefined,
+      });
+
+      try {
+        const history = await getHistory(50);
+        panel.updateState({ historyResult: history });
+      } catch (err: any) {
+        panel.updateState({
+          error: err?.message || "Ошибка получения истории.",
+        });
+        vscode.window.showErrorMessage(
+          `Ошибка получения истории: ${err?.message || err}`
+        );
+      }
+    }
+  );
+
+  context.subscriptions.push(analyzeCmd, optimizeCmd, formatCmd, schemaCmd, historyCmd);
 }
 
 export function deactivate() {}

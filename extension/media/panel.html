@@ -8,14 +8,15 @@
 <body>
   <div class="container">
     <div class="tabs">
-      <div class="tab" data-mode="analysis">Analysis</div>
+      <div class="tab active" data-mode="analysis">Analysis</div>
       <div class="tab" data-mode="optimization">Optimization</div>
       <div class="tab" data-mode="schema">Schema</div>
+      <div class="tab" data-mode="history">History</div>
     </div>
 
     <div id="error" class="error" style="display:none;"></div>
 
-    <div id="analysis-section" class="section" style="display:none;">
+    <div id="analysis-section" class="section">
       <h3>Static analysis</h3>
       <div id="static-summary"></div>
       <ul id="static-issues"></ul>
@@ -48,6 +49,11 @@
       <h3>Database schema</h3>
       <div id="schema-dbtype"></div>
       <div id="schema-tables"></div>
+    </div>
+
+    <div id="history-section" class="section" style="display:none;">
+      <h3>Query History</h3>
+      <div id="history-list"></div>
     </div>
   </div>
 

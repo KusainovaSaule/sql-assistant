@@ -1,51 +1,76 @@
 {
   "name": "sql-assistant",
   "displayName": "SQL Assistant",
-  "description": "SQL assistant with static analysis and GigaChat backend",
-  "version": "0.0.1",
-  "publisher": "your-name",
+  "description": "AI-powered SQL analysis and optimization with GigaChat",
+  "version": "0.1.0",
+  "publisher": "your-team",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/sql-assistant"
+  },
+  "license": "MIT",
   "engines": {
-    "vscode": "^1.90.0"
+    "vscode": "^1.85.0"
   },
   "categories": [
-    "Other"
+    "Programming Languages",
+    "Data Science"
   ],
   "activationEvents": [
     "onCommand:sqlAssistant.analyzeQuery",
     "onCommand:sqlAssistant.optimizeQuery",
     "onCommand:sqlAssistant.formatQuery",
-    "onCommand:sqlAssistant.showSchema"
+    "onCommand:sqlAssistant.showSchema",
+    "onCommand:sqlAssistant.showHistory"
   ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
         "command": "sqlAssistant.analyzeQuery",
-        "title": "AI: Analyze Query",
+        "title": "AI: Analyze SQL Query",
         "category": "SQL Assistant"
       },
       {
         "command": "sqlAssistant.optimizeQuery",
-        "title": "AI: Optimize Query",
+        "title": "AI: Optimize SQL Query",
         "category": "SQL Assistant"
       },
       {
         "command": "sqlAssistant.formatQuery",
-        "title": "AI: Format Query",
+        "title": "Format SQL Query",
         "category": "SQL Assistant"
       },
       {
         "command": "sqlAssistant.showSchema",
-        "title": "AI: Show DB Schema",
+        "title": "Show Database Schema",
         "category": "SQL Assistant"
+      },
+      {
+        "command": "sqlAssistant.showHistory",
+        "title": "Show Query History",
+        "category": "SQL Assistant"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "sqlAssistant.analyzeQuery",
+        "key": "ctrl+shift+a",
+        "mac": "cmd+shift+a",
+        "when": "editorTextFocus && editorLangId == sql"
       }
     ],
     "configuration": {
       "title": "SQL Assistant",
       "properties": {
+        "sqlAssistant.apiUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8000/api/v1",
+          "description": "URL of the backend API"
+        },
         "sqlAssistant.db.host": {
           "type": "string",
-          "default": "127.0.0.1",
+          "default": "localhost",
           "description": "Database host"
         },
         "sqlAssistant.db.port": {
@@ -55,7 +80,7 @@
         },
         "sqlAssistant.db.user": {
           "type": "string",
-          "default": "postgres",
+          "default": "",
           "description": "Database user"
         },
         "sqlAssistant.db.password": {
@@ -65,31 +90,36 @@
         },
         "sqlAssistant.db.database": {
           "type": "string",
-          "default": "postgres",
+          "default": "",
           "description": "Database name"
         },
         "sqlAssistant.db.type": {
           "type": "string",
-          "enum": [
-            "postgres",
-            "mysql",
-            "clickhouse"
-          ],
           "default": "postgres",
+          "enum": ["postgres", "mysql"],
           "description": "Database type"
+        },
+        "sqlAssistant.db.dialect": {
+          "type": "string",
+          "default": "postgres",
+          "enum": ["postgres", "mysql"],
+          "description": "SQL dialect"
         }
       }
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "package": "vsce package"
+    "package": "vsce package",
+    "vscode:prepublish": "npm run compile"
   },
   "devDependencies": {
-    "@types/vscode": "^1.90.0",
-    "@vscode/vsce": "^3.9.2",
-    "typescript": "^5.4.0"
+    "@types/node": "^20.10.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.2"
+  },
+  "dependencies": {
+    "axios": "^1.6.0"
   }
 }

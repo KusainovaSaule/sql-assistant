@@ -6,6 +6,7 @@ let state = {
   aiResult: null,
   optimizeResult: null,
   schemaInfo: null,
+  historyResult: null,
   error: null,
 };
 
@@ -15,107 +16,170 @@ function setMode(mode) {
 }
 
 function render() {
-  const { mode, staticResult, aiResult, optimizeResult, schemaInfo, error } = state;
+  const { mode, staticResult, aiResult, optimizeResult, schemaInfo, historyResult, error } = state;
 
   document.querySelectorAll(".tab").forEach((tab) => {
     tab.classList.toggle("active", tab.dataset.mode === mode);
   });
 
   const errorEl = document.getElementById("error");
-  if (error) {
-    errorEl.style.display = "block";
-    errorEl.textContent = error;
-  } else {
-    errorEl.style.display = "none";
+  if (errorEl) {
+    if (error) {
+      errorEl.style.display = "block";
+      errorEl.textContent = error;
+    } else {
+      errorEl.style.display = "none";
+    }
   }
 
   const analysisSection = document.getElementById("analysis-section");
   const optimizationSection = document.getElementById("optimization-section");
   const schemaSection = document.getElementById("schema-section");
+  const historySection = document.getElementById("history-section");
 
-  analysisSection.style.display = mode === "analysis" ? "block" : "none";
-  optimizationSection.style.display = mode === "optimization" ? "block" : "none";
-  schemaSection.style.display = mode === "schema" ? "block" : "none";
+  if (analysisSection) analysisSection.style.display = mode === "analysis" ? "block" : "none";
+  if (optimizationSection) optimizationSection.style.display = mode === "optimization" ? "block" : "none";
+  if (schemaSection) schemaSection.style.display = mode === "schema" ? "block" : "none";
+  if (historySection) historySection.style.display = mode === "history" ? "block" : "none";
 
   if (mode === "analysis") {
     const staticSummary = document.getElementById("static-summary");
     const staticIssues = document.getElementById("static-issues");
     const staticRecs = document.getElementById("static-recommendations");
 
-    staticSummary.textContent = staticResult?.summary || "No static summary.";
-    staticIssues.innerHTML = "";
-    (staticResult?.issues || []).forEach((issue) => {
-      const li = document.createElement("li");
-      li.textContent = issue;
-      staticIssues.appendChild(li);
-    });
-    staticRecs.innerHTML = "";
-    (staticResult?.recommendations || []).forEach((rec) => {
-      const li = document.createElement("li");
-      li.textContent = rec;
-      staticRecs.appendChild(li);
-    });
+    if (staticSummary) {
+      if (staticResult && staticResult.problems) {
+        staticSummary.textContent = `Найдено проблем: ${staticResult.problems.length}`;
+        if (staticIssues) {
+          staticIssues.innerHTML = "";
+          staticResult.problems.forEach((problem) => {
+            const li = document.createElement("li");
+            const severityColor = problem.severity === 'ERROR' ? '#ff6b6b' : '#ffa94d';
+            li.innerHTML = `<strong>${problem.code}</strong>: ${problem.message} <span style="color: ${severityColor}">(${problem.severity})</span>`;
+            if (problem.recommendation) {
+              const small = document.createElement("small");
+              small.textContent = `→ ${problem.recommendation}`;
+              li.appendChild(small);
+            }
+            staticIssues.appendChild(li);
+          });
+        }
+      } else {
+        staticSummary.textContent = "✅ Статический анализ выполнен, проблем не найдено.";
+        if (staticIssues) staticIssues.innerHTML = "";
+      }
+    }
+    if (staticRecs) staticRecs.innerHTML = "";
 
     const aiSummary = document.getElementById("ai-summary");
     const aiIssues = document.getElementById("ai-issues");
     const aiRecs = document.getElementById("ai-recommendations");
-    const aiExplanation = document.getElementById("ai-explanation");
 
-    aiSummary.textContent = aiResult?.summary || "No AI summary.";
-    aiIssues.innerHTML = "";
-    (aiResult?.issues || []).forEach((issue) => {
-      const li = document.createElement("li");
-      li.textContent = issue;
-      aiIssues.appendChild(li);
-    });
-    aiRecs.innerHTML = "";
-    (aiResult?.recommendations || []).forEach((rec) => {
-      const li = document.createElement("li");
-      li.textContent = rec;
-      aiRecs.appendChild(li);
-    });
-    aiExplanation.textContent =
-      aiResult?.llm_explanation || "No AI explanation.";
+    if (aiSummary) {
+      if (aiResult) {
+        aiSummary.textContent = aiResult.logic_description || "Описание логики отсутствует.";
+        
+        if (aiIssues) {
+          aiIssues.innerHTML = "";
+          (aiResult.problems || []).forEach((problem) => {
+            const li = document.createElement("li");
+            const severityColor = problem.severity === 'ERROR' ? '#ff6b6b' : '#ffa94d';
+            li.innerHTML = `<strong>${problem.code || 'ISSUE'}</strong>: ${problem.message} <span style="color: ${severityColor}">(${problem.severity || 'WARNING'})</span>`;
+            if (problem.recommendation) {
+              const small = document.createElement("small");
+              small.textContent = `→ ${problem.recommendation}`;
+              li.appendChild(small);
+            }
+            aiIssues.appendChild(li);
+          });
+        }
+
+        if (aiRecs) {
+          aiRecs.innerHTML = "";
+          (aiResult.recommendations || []).forEach((rec) => {
+            const li = document.createElement("li");
+            li.textContent = rec;
+            aiRecs.appendChild(li);
+          });
+        }
+      } else {
+        aiSummary.textContent = "⏳ AI анализ не выполнен или данные не получены.";
+        if (aiIssues) aiIssues.innerHTML = "";
+        if (aiRecs) aiRecs.innerHTML = "";
+      }
+    }
   }
 
   if (mode === "optimization") {
-    document.getElementById("optimized-sql").textContent =
-      optimizeResult?.optimized_sql || "No optimized SQL.";
-    document.getElementById("optimization-explanation").textContent =
-      optimizeResult?.explanation || "No explanation.";
-    document.getElementById("optimization-effect").textContent =
-      optimizeResult?.expected_effect || "No effect description.";
+    const optimizedSql = document.getElementById("optimized-sql");
+    const explanation = document.getElementById("optimization-explanation");
+    const effect = document.getElementById("optimization-effect");
+
+    if (optimizeResult) {
+      if (optimizedSql) optimizedSql.textContent = optimizeResult.optimized_sql || "Нет оптимизированного SQL.";
+      if (explanation) explanation.textContent = optimizeResult.explanation || "Нет объяснения.";
+      if (effect) effect.textContent = optimizeResult.expected_effect || "Нет описания эффекта.";
+    } else {
+      if (optimizedSql) optimizedSql.textContent = "⏳ Оптимизация не выполнена.";
+      if (explanation) explanation.textContent = "";
+      if (effect) effect.textContent = "";
+    }
   }
 
   if (mode === "schema") {
-    document.getElementById("schema-dbtype").textContent =
-      "DB Type: " + (schemaInfo?.dbType || "unknown");
-
+    const dbType = document.getElementById("schema-dbtype");
     const tablesEl = document.getElementById("schema-tables");
-    tablesEl.innerHTML = "";
-    (schemaInfo?.tables || []).forEach((table) => {
-      const div = document.createElement("div");
-      div.style.marginBottom = "8px";
 
-      const title = document.createElement("div");
-      title.textContent = `Table: ${table.name}`;
-      div.appendChild(title);
+    if (dbType) dbType.textContent = "DB Type: " + (schemaInfo?.dbType || "unknown");
 
-      const ul = document.createElement("ul");
-      (table.columns || []).forEach((col) => {
-        const li = document.createElement("li");
-        const flags = [];
-        if (col.isPrimaryKey) flags.push("PK");
-        if (col.isIndexed) flags.push("IDX");
-        li.textContent = `${col.name} (${col.type})${
-          flags.length ? " [" + flags.join(", ") + "]" : ""
-        }`;
-        ul.appendChild(li);
-      });
-      div.appendChild(ul);
+    if (tablesEl) {
+      tablesEl.innerHTML = "";
+      if (schemaInfo?.tables && schemaInfo.tables.length > 0) {
+        schemaInfo.tables.forEach((table) => {
+          const div = document.createElement("div");
+          div.style.marginBottom = "8px";
 
-      tablesEl.appendChild(div);
-    });
+          const title = document.createElement("div");
+          title.textContent = `Table: ${table.name}`;
+          div.appendChild(title);
+
+          const ul = document.createElement("ul");
+          (table.columns || []).forEach((col) => {
+            const li = document.createElement("li");
+            const flags = [];
+            if (col.isPrimaryKey) flags.push("PK");
+            if (col.isIndexed) flags.push("IDX");
+            li.textContent = `${col.name} (${col.type})${flags.length ? " [" + flags.join(", ") + "]" : ""}`;
+            ul.appendChild(li);
+          });
+          div.appendChild(ul);
+          tablesEl.appendChild(div);
+        });
+      } else {
+        tablesEl.innerHTML = "Нет данных о схеме.";
+      }
+    }
+  }
+
+  if (mode === "history") {
+    const historyList = document.getElementById("history-list");
+    if (historyList) {
+      historyList.innerHTML = "";
+      if (historyResult?.history && historyResult.history.length > 0) {
+        historyResult.history.forEach((item) => {
+          const div = document.createElement("div");
+          div.className = "history-item";
+          const timestamp = item.created_at ? new Date(item.created_at * 1000).toLocaleString() : 'неизвестно';
+          div.innerHTML = `
+            <div><strong>${item.operation || 'unknown'}</strong> at ${timestamp}</div>
+            <div style="font-size: 12px; color: #888;">${item.sql ? item.sql.substring(0, 100) : ''}${item.sql && item.sql.length > 100 ? '...' : ''}</div>
+          `;
+          historyList.appendChild(div);
+        });
+      } else {
+        historyList.innerHTML = "Нет истории.";
+      }
+    }
   }
 }
 
@@ -133,21 +197,27 @@ document.querySelectorAll(".tab").forEach((tab) => {
   });
 });
 
-document.getElementById("apply-optimized").addEventListener("click", () => {
-  if (!state.optimizeResult?.optimized_sql) return;
-  vscode.postMessage({
-    command: "applyOptimizedQuery",
-    text: state.optimizeResult.optimized_sql,
+const applyBtn = document.getElementById("apply-optimized");
+if (applyBtn) {
+  applyBtn.addEventListener("click", () => {
+    if (!state.optimizeResult?.optimized_sql) return;
+    vscode.postMessage({
+      command: "applyOptimizedQuery",
+      text: state.optimizeResult.optimized_sql,
+    });
   });
-});
+}
 
-document.getElementById("copy-optimized").addEventListener("click", async () => {
-  if (!state.optimizeResult?.optimized_sql) return;
-  try {
-    await navigator.clipboard.writeText(state.optimizeResult.optimized_sql);
-  } catch (e) {
-    // может не работать в WebView, но пробуем
-  }
-});
+const copyBtn = document.getElementById("copy-optimized");
+if (copyBtn) {
+  copyBtn.addEventListener("click", async () => {
+    if (!state.optimizeResult?.optimized_sql) return;
+    try {
+      await navigator.clipboard.writeText(state.optimizeResult.optimized_sql);
+    } catch (e) {
+      // может не работать
+    }
+  });
+}
 
 render();
