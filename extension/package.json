@@ -14,7 +14,8 @@
     "onCommand:sqlAssistant.analyzeQuery",
     "onCommand:sqlAssistant.optimizeQuery",
     "onCommand:sqlAssistant.formatQuery",
-    "onCommand:sqlAssistant.showSchema"
+    "onCommand:sqlAssistant.showSchema",
+    "onCommand:sqlAssistant.setPassword"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -38,6 +39,11 @@
         "command": "sqlAssistant.showSchema",
         "title": "AI: Show DB Schema",
         "category": "SQL Assistant"
+      },
+      {
+        "command": "sqlAssistant.setPassword",
+        "title": "AI: Set DB Password",
+        "category": "SQL Assistant"
       }
     ],
     "configuration": {
@@ -57,11 +63,6 @@
           "type": "string",
           "default": "postgres",
           "description": "Database user"
-        },
-        "sqlAssistant.db.password": {
-          "type": "string",
-          "default": "",
-          "description": "Database password"
         },
         "sqlAssistant.db.database": {
           "type": "string",
