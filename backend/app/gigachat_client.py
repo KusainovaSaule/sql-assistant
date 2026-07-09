@@ -10,12 +10,17 @@ from .analysis import Schema
 
 load_dotenv()
 
+def _get_verify_ssl_certs_option() -> bool:
+    val = os.getenv("VERIFY_SSL_CERTS", "true").strip().lower()
+    return val not in ("false", "0", "no", "off")
+
 def _get_giga_client() -> GigaChat:
     api_key = os.getenv("GIGACHAT_API_KEY")
+    verify_ssl_certs: bool = _get_verify_ssl_certs_option()
+
     if not api_key:
         raise ValueError("GIGACHAT_API_KEY не найден в .env")
-    verify_ssl_certs=False #часто нужен для обхода проблем с сертификатами Сбера
-    return GigaChat(credentials=api_key, verify_ssl_certs=False)
+    return GigaChat(credentials=api_key, verify_ssl_certs=verify_ssl_certs)
 
 def _build_analysis_prompt(sql: str, schema: Optional[Schema], static_problems: list[StaticAnalyzeProblem]) -> str:
     prompt = f"Проанализируй следующий SQL-запрос:\n```sql\n{sql}\n```\n\n"
