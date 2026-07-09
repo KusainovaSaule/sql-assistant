@@ -18,19 +18,20 @@ function getSelectedSql(editor: vscode.TextEditor): string | null {
   return editor.document.getText();
 }
 
-function getDbConfig(): DbConfig | undefined {
+async function getDbConfig(context: vscode.ExtensionContext): Promise<DbConfig | undefined> {
   const cfg = vscode.workspace.getConfiguration("sqlAssistant");
 
   const host = cfg.get<string>("db.host");
   const port = cfg.get<number>("db.port");
   const user = cfg.get<string>("db.user");
-  const password = cfg.get<string>("db.password");
   const database = cfg.get<string>("db.database");
   const dbType = cfg.get<string>("db.type") as DbConfig["dbType"];
 
   if (!host || !port || !user || !database || !dbType) {
     return undefined;
   }
+
+  const password = await context.secrets.get("dbPassword");
 
   return {
     host,
@@ -48,6 +49,24 @@ function getDialect(): string | undefined {
 }
 
 export function activate(context: vscode.ExtensionContext) {
+  const setPasswordCmd = vscode.commands.registerCommand(
+    "sqlAssistant.setDbPassword",
+    async () => {
+      const password = await vscode.window.showInputBox({
+        prompt: "Введите пароль для базы данных",
+        password: true,
+        ignoreFocusOut: true
+      });
+
+      if (password !== undefined) {
+        await context.secrets.store("dbPassword", password);
+        vscode.window.showInformationMessage("Пароль от БД успешно и безопасно сохранен.");
+      }
+    }
+  );
+
+  context.subscriptions.push(setPasswordCmd);
+
   const analyzeCmd = vscode.commands.registerCommand(
     "sqlAssistant.analyzeQuery",
     async () => {
@@ -76,7 +95,7 @@ export function activate(context: vscode.ExtensionContext) {
         const staticResult = await analyzeStatic(sql, dialect);
         panel.updateState({ staticResult });
 
-        const config = getDbConfig();
+        const config = await getDbConfig(context);
         const aiResult = await analyzeAi(sql, config, dialect);
         panel.updateState({ aiResult });
       } catch (err: any) {
@@ -113,7 +132,7 @@ export function activate(context: vscode.ExtensionContext) {
       });
 
       try {
-        const config = getDbConfig();
+        const config = await getDbConfig(context);
         const dialect = getDialect();
         const result = await optimizeQuery(sql, config, dialect);
         panel.updateState({ optimizeResult: result });
@@ -176,7 +195,7 @@ export function activate(context: vscode.ExtensionContext) {
       });
 
       try {
-        const config = getDbConfig();
+        const config = await getDbConfig(context);
         if (!config) {
           panel.updateState({
             error: "Не настроено подключение к БД (sqlAssistant.db.*).",
