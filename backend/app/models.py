@@ -37,3 +37,19 @@ class AIOptimizeResponse(BaseModel):
 
 class HistoryResponse(BaseModel):
     history: List[dict]
+
+class SchemaRequest(BaseModel):
+    db: DBConnection
+    dialect: str
+
+class SchemaColumn(BaseModel):
+    name: str
+    type: str
+
+class SchemaTable(BaseModel):
+    name: str
+    columns: List[SchemaColumn]
+
+class SchemaResponse(BaseModel):
+    dbType: str
+    tables: List[SchemaTable]

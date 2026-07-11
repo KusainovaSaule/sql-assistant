@@ -187,7 +187,7 @@ export function activate(context: vscode.ExtensionContext) {
           return;
         }
 
-        const schema = await getSchema(config);
+        const schema = await getSchema(config, getDialect());
         panel.updateState({ schemaInfo: schema });
       } catch (err: any) {
         panel.updateState({
