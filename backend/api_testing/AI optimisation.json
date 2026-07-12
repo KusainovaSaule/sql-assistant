@@ -6,7 +6,7 @@
         "text": "{\n  \"sql\": \"select * from users where name = 'John'\",\n  \"db_schema\": {\n    \"users\": [\"id\", \"name\", \"email\"]\n  }\n}"
     },
     "url": "http://localhost:8000/api/v1/sql/optimize/ai",
-    "sortOrder": 6,
+    "sortOrder": 8,
     "parameters": [],
     "pathParameters": [],
     "headers": [

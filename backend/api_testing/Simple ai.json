@@ -6,7 +6,7 @@
         "text": "{\n  \"sql\": \"SELECT *  FROM users\"\n}\n"
     },
     "url": "http://localhost:8000/api/v1/sql/analyze/ai",
-    "sortOrder": 1,
+    "sortOrder": 3,
     "parameters": [],
     "headers": [
         {

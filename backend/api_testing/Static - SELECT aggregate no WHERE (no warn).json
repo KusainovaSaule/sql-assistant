@@ -1,1 +1,17 @@
-{"_type":"request","method":"POST","url":"http://127.0.0.1:8000/api/v1/sql/analyze/static","body":{"mimeType":"application/json","text":"{\n  \"sql\": \"SELECT COUNT(*) FROM users\",\n  \"dialect\": \"postgres\"\n}"},"headers":[{"name":"Content-Type","value":"application/json"}],"parameters":[],"sortOrder":15}
+{
+    "_type": "request",
+    "method": "POST",
+    "url": "http://127.0.0.1:8000/api/v1/sql/analyze/static",
+    "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"sql\": \"SELECT COUNT(*) FROM users\",\n  \"dialect\": \"postgres\"\n}"
+    },
+    "headers": [
+        {
+            "name": "Content-Type",
+            "value": "application/json"
+        }
+    ],
+    "parameters": [],
+    "sortOrder": 17
+}

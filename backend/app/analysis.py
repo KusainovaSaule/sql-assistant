@@ -1,3 +1,4 @@
+from sqlglot.expressions.core import Expr
 from typing import Optional, Sequence, cast
 
 import sqlglot
@@ -150,12 +151,35 @@ def _check_antipatterns(expression: sqlglot.Expr) -> list[StaticAnalyzeProblem]:
 
     # 6. Функция/выражение над колонкой в WHERE — non-sargable
     for where in expression.find_all(exp.Where):
-        for func in where.find_all(exp.Func):
-            if any(isinstance(arg, exp.Column) for arg in func.find_all(exp.Column)):
-                fname = func.sql_name() if hasattr(func, "sql_name") else func.key.upper()
+        # Ищем бинарные операции (=, <, >, <=, >=, !=)
+        for binary in where.find_all(exp.Binary):
+            left: Expr = binary.left
+            right: Expr = binary.right
+
+            def is_func_on_column(node: Optional[Expr]) -> bool:
+                if not node:
+                    return False
+                # Проверяем функции и приведение типов (CAST)
+                if isinstance(node, (exp.Func, exp.Cast)):
+                    return any(isinstance(arg, exp.Column) for arg in node.find_all(exp.Column))
+                return False
+
+            def is_constant(node: Optional[Expr]) -> bool:
+                if not node:
+                    return False
+                # Константы или параметры (например, ?, :1)
+                return isinstance(node, (exp.Literal, exp.Parameter))
+
+            # Паттерн: FUNC(col) = Literal ИЛИ Literal = FUNC(col)
+            if (is_func_on_column(left) and is_constant(right)) or \
+               (is_func_on_column(right) and is_constant(left)):
+                
+                func_node: Expr = left if is_func_on_column(left) else right
+                fname: str = func_node.key.upper()
+                
                 problems.append(StaticAnalyzeProblem(
                     code="FUNCTION_ON_COLUMN",
-                    message=f"Функция {fname}(...) над колонкой в WHERE — индекс по колонке не используется.",
+                    message=f"Функция {fname}(...) над колонкой сравнивается с константой — индекс по колонке не используется.",
                     severity="WARNING",
                     recommendation="Перепишите условие без функции над колонкой (перенесите вычисление на константу) либо создайте функциональный индекс.",
                 ))
