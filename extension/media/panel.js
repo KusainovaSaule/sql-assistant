@@ -230,7 +230,9 @@ window.addEventListener("message", (event) => {
 
 document.querySelectorAll(".tab").forEach((tab) => {
   tab.addEventListener("click", () => {
-    setMode(tab.dataset.mode);
+    const mode = tab.dataset.mode;
+    setMode(mode);
+    vscode.postMessage({ command: "runMode", mode });
   });
 });
 

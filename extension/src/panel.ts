@@ -13,9 +13,14 @@ export interface PanelState {
 export class SqlAssistantPanel {
   public static currentPanel: SqlAssistantPanel | undefined;
   public onRequestHistoryPage?: (offset: number) => void;
+  public onRequestMode?: (mode: string) => void;
   private readonly panel: vscode.WebviewPanel;
   private disposables: vscode.Disposable[] = [];
   private state: PanelState = { mode: "analysis" };
+
+  public getMode(): string {
+    return this.state.mode;
+  }
 
   public static createOrShow(extensionUri: vscode.Uri) {
     const column = vscode.ViewColumn.Beside;
@@ -61,6 +66,8 @@ export class SqlAssistantPanel {
           this.applyOptimizedQuery(message.text);
         } else if (message.command === "loadHistoryPage") {
           this.onRequestHistoryPage?.(message.offset);
+        } else if (message.command === "runMode") {
+          this.onRequestMode?.(message.mode);
         }
       },
       null,
