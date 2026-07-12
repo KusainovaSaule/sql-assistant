@@ -32,17 +32,42 @@ async def analyze_static(req: SQLRequest, cache: CacheDep) -> StaticAnalyzeRespo
     problems: list[StaticAnalyzeProblem] = analyze_sql_static(req.sql, req.dialect, schema)
     return StaticAnalyzeResponse(problems=problems)
 
+def _build_schema_meta(tables: list[SchemaTable]) -> str:
+    """Compact text summary of primary keys and indexes for the GigaChat prompt."""
+    lines: list[str] = []
+    for t in tables:
+        pks = [c.name for c in t.columns if c.isPrimaryKey]
+        idx = [c.name for c in t.columns if c.isIndexed and not c.isPrimaryKey]
+        parts: list[str] = []
+        if pks:
+            parts.append(f"PK({', '.join(pks)})")
+        if idx:
+            parts.append(f"индексы: {', '.join(idx)}")
+        if parts:
+            lines.append(f"- {t.name}: {'; '.join(parts)}")
+    return "\n".join(lines)
+
+async def _fetch_schema_meta(req: SQLRequest) -> Optional[str]:
+    if not (req.db and req.dialect):
+        return None
+    try:
+        detailed = await get_schema_detailed(req.db, req.dialect)
+        return _build_schema_meta(detailed)
+    except Exception:
+        return None
+
 @app.post("/api/v1/sql/analyze/ai", response_model=AIAnalyzeResponse)
 async def analyze_ai(req: SQLRequest, cache: CacheDep) -> AIAnalyzeResponse:
     schema: Optional[Schema] = None
     if (req.db and req.dialect):
         schema = await get_schema(req.db, req.dialect, cache)
-        
+
     static_problems: list[StaticAnalyzeProblem] = analyze_sql_static(req.sql, req.dialect, schema)
+    schema_meta: Optional[str] = await _fetch_schema_meta(req)
 
     try:
         # Вызов GigaChat
-        response: AIAnalyzeResponse = await analyze_query_with_ai(req.sql, schema, static_problems, cache)
+        response: AIAnalyzeResponse = await analyze_query_with_ai(req.sql, schema, static_problems, cache, schema_meta)
         return response
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка GigaChat: {str(e)}")
@@ -52,9 +77,11 @@ async def optimize_ai(req: SQLRequest, cache: CacheDep) -> AIOptimizeResponse:
     schema: Optional[Schema] = None
     if (req.db and req.dialect):
         schema = await get_schema(req.db, req.dialect, cache)
-        
+
+    schema_meta: Optional[str] = await _fetch_schema_meta(req)
+
     try:
-        response: AIOptimizeResponse = await optimize_query_with_ai(req.sql, schema, cache)
+        response: AIOptimizeResponse = await optimize_query_with_ai(req.sql, schema, cache, schema_meta)
         return response
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка GigaChat: {str(e)}")

@@ -22,15 +22,19 @@ def _get_giga_client() -> GigaChat:
         raise ValueError("GIGACHAT_API_KEY не найден в .env")
     return GigaChat(credentials=api_key, verify_ssl_certs=verify_ssl_certs)
 
-def _build_analysis_prompt(sql: str, schema: Optional[Schema], static_problems: list[StaticAnalyzeProblem]) -> str:
+def _build_analysis_prompt(sql: str, schema: Optional[Schema], static_problems: list[StaticAnalyzeProblem],
+                           schema_meta: Optional[str] = None) -> str:
     prompt = f"Проанализируй следующий SQL-запрос:\n```sql\n{sql}\n```\n\n"
-    
+
     if schema:
         schema_str = json.dumps(schema, ensure_ascii=False, indent=2)
         prompt += f"Схема базы данных (таблицы и колонки):\n{schema_str}\n\n"
     else:
         prompt += "Схема базы данных неизвестна. Анализируй только по тексту запроса.\n\n"
-        
+
+    if schema_meta:
+        prompt += f"Существующие первичные ключи и индексы:\n{schema_meta}\n\n"
+
     if static_problems:
         problems_str = "\n".join([f"- {p.message}" for p in static_problems])
         prompt += f"Уже найденные статические проблемы:\n{problems_str}\n\n"
@@ -43,15 +47,18 @@ def _build_analysis_prompt(sql: str, schema: Optional[Schema], static_problems: 
 }"""
     return prompt
 
-def _build_optimize_prompt(sql: str, schema: Optional[Schema]) -> str:
+def _build_optimize_prompt(sql: str, schema: Optional[Schema], schema_meta: Optional[str] = None) -> str:
     prompt = f"Оптимизируй следующий SQL-запрос:\n```sql\n{sql}\n```\n\n"
-    
+
     if schema:
         schema_str = json.dumps(schema, ensure_ascii=False, indent=2)
         prompt += f"Учитывай эту схему базы данных:\n{schema_str}\n\n"
     else:
         prompt += "Схема базы данных неизвестна. Оптимизируй только на основе синтаксиса.\n\n"
-        
+
+    if schema_meta:
+        prompt += f"Существующие первичные ключи и индексы (не предлагай уже имеющиеся):\n{schema_meta}\n\n"
+
     prompt += """Дай ответ СТРОГО в формате JSON (без markdown и лишнего текста):
 {
   "optimized_sql": "тут только оптимизированный SQL код",
@@ -61,13 +68,13 @@ def _build_optimize_prompt(sql: str, schema: Optional[Schema]) -> str:
     return prompt
 
 async def analyze_query_with_ai(sql: str, schema: Optional[Schema], static_problems: list[StaticAnalyzeProblem],
-                                cache: AsyncCacheProtocol) -> AIAnalyzeResponse:
+                                cache: AsyncCacheProtocol, schema_meta: Optional[str] = None) -> AIAnalyzeResponse:
     cached_response: Optional[dict[str, Any]] = await cache.get_recommendation("analyze_ai", sql)
 
     if (cached_response is not None):
         return AIAnalyzeResponse.model_validate(cached_response)
-    
-    prompt = _build_analysis_prompt(sql, schema, static_problems)
+
+    prompt = _build_analysis_prompt(sql, schema, static_problems, schema_meta)
     
     async def _call_giga() -> str:
         with _get_giga_client() as giga:
@@ -93,13 +100,14 @@ async def analyze_query_with_ai(sql: str, schema: Optional[Schema], static_probl
     return response
 
 
-async def optimize_query_with_ai(sql: str, schema: Optional[Schema], cache: AsyncCacheProtocol) -> AIOptimizeResponse:
+async def optimize_query_with_ai(sql: str, schema: Optional[Schema], cache: AsyncCacheProtocol,
+                                 schema_meta: Optional[str] = None) -> AIOptimizeResponse:
     cached_response: Optional[dict[str, Any]] = await cache.get_recommendation("optimize_ai", sql)
 
     if (cached_response is not None):
         return AIOptimizeResponse.model_validate(cached_response)
-    
-    prompt = _build_optimize_prompt(sql, schema)
+
+    prompt = _build_optimize_prompt(sql, schema, schema_meta)
     
     async def _call_giga() -> str:
         with _get_giga_client() as giga:
