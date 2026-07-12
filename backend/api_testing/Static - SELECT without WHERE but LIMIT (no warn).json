@@ -1,0 +1,1 @@
+{"_type":"request","method":"POST","url":"http://127.0.0.1:8000/api/v1/sql/analyze/static","body":{"mimeType":"application/json","text":"{\n  \"sql\": \"SELECT id, name FROM users LIMIT 10\",\n  \"dialect\": \"postgres\"\n}"},"headers":[{"name":"Content-Type","value":"application/json"}],"parameters":[],"sortOrder":14}
