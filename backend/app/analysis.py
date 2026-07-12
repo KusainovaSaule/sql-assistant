@@ -8,7 +8,7 @@ import sqlglot.expressions as exp
 from .cache import AsyncCacheProtocol
 
 from .connect import create_db_connection
-from .models import DBConnection, StaticAnalyzeProblem
+from .models import DBConnection, SchemaColumn, SchemaTable, StaticAnalyzeProblem
 
 
 type Column = dict[str, str]
@@ -32,6 +32,30 @@ async def get_schema(credentials: DBConnection, dialect: str, cache: AsyncCacheP
     await cache.set_schema(credentials, dialect, schema)
 
     return schema
+
+async def get_schema_detailed(credentials: DBConnection, dialect: str) -> list[SchemaTable]:
+    """Detailed schema for the UI/GigaChat: columns + primary keys + indexes.
+
+    Not cached — the simple get_schema (used for qualify/AI context) stays the
+    cached fast path; this richer view is fetched on demand for Show Schema.
+    """
+    async with create_db_connection(credentials, dialect) as db_wrapper:
+        columns: Sequence[tuple[str, str, str]] = await db_wrapper.fetch_schema_columns()
+        primary_keys: set[tuple[str, str]] = await db_wrapper.fetch_primary_keys()
+        indexed: set[tuple[str, str]] = await db_wrapper.fetch_indexed_columns()
+
+    tables: dict[str, list[SchemaColumn]] = {}
+    for table, column, dtype in columns:
+        tables.setdefault(table, []).append(
+            SchemaColumn(
+                name=column,
+                type=dtype,
+                isPrimaryKey=(table, column) in primary_keys,
+                isIndexed=(table, column) in indexed,
+            )
+        )
+
+    return [SchemaTable(name=name, columns=cols) for name, cols in tables.items()]
 
 def analyze_sql_static(sql: str, dialect: Optional[str], schema: Optional[Schema] = None) -> list[StaticAnalyzeProblem]:
     problems: list[StaticAnalyzeProblem] = []

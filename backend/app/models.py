@@ -45,6 +45,8 @@ class SchemaRequest(BaseModel):
 class SchemaColumn(BaseModel):
     name: str
     type: str
+    isPrimaryKey: bool = False
+    isIndexed: bool = False
 
 class SchemaTable(BaseModel):
     name: str

@@ -8,7 +8,7 @@ from .dependencies import CacheDep
 from .cache import AsyncCacheProtocol, SQLiteCache
 from .format import format
 from .models import AIAnalyzeResponse, AIOptimizeResponse, FormatResponse, HistoryResponse, SchemaColumn, SchemaRequest, SchemaResponse, SchemaTable, StaticAnalyzeProblem, StaticAnalyzeResponse, SQLRequest
-from .analysis import Schema, analyze_sql_static, get_schema
+from .analysis import Schema, analyze_sql_static, get_schema, get_schema_detailed
 from .gigachat_client import analyze_query_with_ai, optimize_query_with_ai
 
 @asynccontextmanager
@@ -60,20 +60,13 @@ async def optimize_ai(req: SQLRequest, cache: CacheDep) -> AIOptimizeResponse:
         raise HTTPException(status_code=500, detail=f"Ошибка GigaChat: {str(e)}")
 
 @app.post("/api/v1/sql/schema", response_model=SchemaResponse)
-async def get_db_schema(req: SchemaRequest, cache: CacheDep) -> SchemaResponse:
-    """Подключается к БД (или берёт из кэша), извлекает схему для webview и контекста GigaChat."""
+async def get_db_schema(req: SchemaRequest) -> SchemaResponse:
+    """Подключается к БД, извлекает схему для webview: таблицы, колонки, типы, ключи, индексы."""
     try:
-        schema: Schema = await get_schema(req.db, req.dialect, cache)
+        tables = await get_schema_detailed(req.db, req.dialect)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка подключения к БД: {str(e)}")
 
-    tables = [
-        SchemaTable(
-            name=table,
-            columns=[SchemaColumn(name=col, type=dtype) for col, dtype in cols.items()],
-        )
-        for table, cols in schema.items()
-    ]
     return SchemaResponse(dbType=req.dialect, tables=tables)
 
 @app.get("/api/v1/history", response_model=HistoryResponse)
