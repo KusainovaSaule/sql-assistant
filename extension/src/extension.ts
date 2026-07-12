@@ -200,27 +200,34 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
+  const HISTORY_PAGE_SIZE = 30;
+
+  const loadHistoryPage = async (offset: number) => {
+    const panel = SqlAssistantPanel.createOrShow(context.extensionUri);
+    try {
+      const history = await getHistory(HISTORY_PAGE_SIZE, offset);
+      panel.updateState({ historyResult: history, error: undefined });
+    } catch (err: any) {
+      panel.updateState({
+        error: err?.message || "Ошибка получения истории.",
+      });
+      vscode.window.showErrorMessage(
+        `Ошибка получения истории: ${err?.message || err}`
+      );
+    }
+  };
+
   const historyCmd = vscode.commands.registerCommand(
     "sqlAssistant.showHistory",
     async () => {
       const panel = SqlAssistantPanel.createOrShow(context.extensionUri);
+      panel.onRequestHistoryPage = loadHistoryPage;
       panel.updateState({
         mode: "history",
         historyResult: undefined,
         error: undefined,
       });
-
-      try {
-        const history = await getHistory(50);
-        panel.updateState({ historyResult: history });
-      } catch (err: any) {
-        panel.updateState({
-          error: err?.message || "Ошибка получения истории.",
-        });
-        vscode.window.showErrorMessage(
-          `Ошибка получения истории: ${err?.message || err}`
-        );
-      }
+      await loadHistoryPage(0);
     }
   );
 

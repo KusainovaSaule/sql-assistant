@@ -130,3 +130,30 @@ button.secondary:hover {
   max-height: 300px;
   overflow-y: auto;
 }
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.pager button {
+  background-color: #0e639c;
+  color: #ffffff;
+  border: none;
+  padding: 4px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.pager button:disabled {
+  background-color: #3a3a3a;
+  color: #888;
+  cursor: default;
+}
+
+.pager-info {
+  font-size: 12px;
+  color: #aaa;
+}

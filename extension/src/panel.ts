@@ -12,6 +12,7 @@ export interface PanelState {
 
 export class SqlAssistantPanel {
   public static currentPanel: SqlAssistantPanel | undefined;
+  public onRequestHistoryPage?: (offset: number) => void;
   private readonly panel: vscode.WebviewPanel;
   private disposables: vscode.Disposable[] = [];
   private state: PanelState = { mode: "analysis" };
@@ -58,6 +59,8 @@ export class SqlAssistantPanel {
       (message) => {
         if (message.command === "applyOptimizedQuery") {
           this.applyOptimizedQuery(message.text);
+        } else if (message.command === "loadHistoryPage") {
+          this.onRequestHistoryPage?.(message.offset);
         }
       },
       null,
@@ -160,6 +163,7 @@ export class SqlAssistantPanel {
     <div id="history-section" class="section" style="display:none;">
       <h3>Query History</h3>
       <div id="history-list"></div>
+      <div id="history-pager" class="pager"></div>
     </div>
   </div>
 
