@@ -1,3 +1,4 @@
+import asyncio
 from typing import Optional
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
@@ -29,7 +30,7 @@ async def analyze_static(req: SQLRequest, cache: CacheDep) -> StaticAnalyzeRespo
     schema: Optional[Schema] = None
     if (req.db and req.dialect):
         schema = await get_schema(req.db, req.dialect, cache)
-    problems: list[StaticAnalyzeProblem] = analyze_sql_static(req.sql, req.dialect, schema)
+    problems: list[StaticAnalyzeProblem] = await asyncio.to_thread(analyze_sql_static, req.sql, req.dialect, schema)
     return StaticAnalyzeResponse(problems=problems)
 
 @app.post("/api/v1/sql/analyze/ai", response_model=AIAnalyzeResponse)
@@ -38,7 +39,7 @@ async def analyze_ai(req: SQLRequest, cache: CacheDep) -> AIAnalyzeResponse:
     if (req.db and req.dialect):
         schema = await get_schema(req.db, req.dialect, cache)
         
-    static_problems: list[StaticAnalyzeProblem] = analyze_sql_static(req.sql, req.dialect, schema)
+    static_problems: list[StaticAnalyzeProblem] = await asyncio.to_thread(analyze_sql_static, req.sql, req.dialect, schema)
 
     try:
         # Вызов GigaChat
