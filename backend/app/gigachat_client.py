@@ -22,8 +22,7 @@ def _get_giga_client() -> GigaChat:
         raise ValueError("GIGACHAT_API_KEY не найден в .env")
     return GigaChat(credentials=api_key, verify_ssl_certs=verify_ssl_certs)
 
-def _build_analysis_prompt(sql: str, schema: Optional[Schema], static_problems: list[StaticAnalyzeProblem],
-                           schema_meta: Optional[str] = None) -> str:
+def _build_analysis_prompt(sql: str, schema: Optional[Schema], static_problems: list[StaticAnalyzeProblem],) -> str:
     prompt = f"Проанализируй следующий SQL-запрос:\n```sql\n{sql}\n```\n\n"
 
     if schema:
@@ -32,8 +31,8 @@ def _build_analysis_prompt(sql: str, schema: Optional[Schema], static_problems: 
     else:
         prompt += "Схема базы данных неизвестна. Анализируй только по тексту запроса.\n\n"
 
-    if schema_meta:
-        prompt += f"Существующие первичные ключи и индексы:\n{schema_meta}\n\n"
+    # if schema_meta:
+    #     prompt += f"Существующие первичные ключи и индексы:\n{schema_meta}\n\n"
 
     if static_problems:
         problems_str = "\n".join([f"- {p.message}" for p in static_problems])
@@ -68,13 +67,13 @@ def _build_optimize_prompt(sql: str, schema: Optional[Schema], schema_meta: Opti
     return prompt
 
 async def analyze_query_with_ai(sql: str, schema: Optional[Schema], static_problems: list[StaticAnalyzeProblem],
-                                cache: AsyncCacheProtocol, schema_meta: Optional[str] = None) -> AIAnalyzeResponse:
+                                cache: AsyncCacheProtocol) -> AIAnalyzeResponse:
     cached_response: Optional[dict[str, Any]] = await cache.get_recommendation("analyze_ai", sql)
 
     if (cached_response is not None):
         return AIAnalyzeResponse.model_validate(cached_response)
 
-    prompt = _build_analysis_prompt(sql, schema, static_problems, schema_meta)
+    prompt = _build_analysis_prompt(sql, schema, static_problems)
     
     async def _call_giga() -> str:
         with _get_giga_client() as giga:

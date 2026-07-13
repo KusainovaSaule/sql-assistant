@@ -6,64 +6,44 @@ from sqlglot.errors import ParseError, OptimizeError
 from sqlglot.optimizer.qualify import qualify
 import sqlglot.expressions as exp
 
-from .cache import AsyncCacheProtocol
+from .cache import AsyncCacheProtocol, Schema
 
 from .connect import create_db_connection
 from .models import DBConnection, SchemaColumn, SchemaTable, StaticAnalyzeProblem
 
 
-type Column = dict[str, str]
-type Schema = dict[str, Column]
-
-async def get_schema(credentials: DBConnection, dialect: str, cache: AsyncCacheProtocol) -> Schema:
-    schema: Optional[Schema] = await cache.get_schema(credentials, dialect)
-
-    if (schema is not None):
-        return schema
+def _to_schema(columns: Sequence[tuple[str, str, str]],
+        primary_keys: set[tuple[str, str]],
+        indexed: set[tuple[str, str]]) -> Schema:
+    schema: Schema = {}
     
-    schema = {}
+    for table, column, dtype in columns:
+        schema.setdefault(table, {}).setdefault(column, {"type": dtype})
     
-    async with create_db_connection(credentials, dialect) as db_wrapper:
-        columns: Sequence[tuple[str, str, str]] = await db_wrapper.fetch_schema_columns()
-        for table, column, dtype in columns:
-            if table not in schema:
-                schema[table] = {}
-            schema[table][column] = dtype
+    for table, column in primary_keys:
+        schema[table][column]["is_primary_key"] = True
     
-    await cache.set_schema(credentials, dialect, schema)
+    for table, column in indexed:
+        schema[table][column]["is_indexed"] = True
 
     return schema
+        
+async def get_schema(credentials: DBConnection, dialect: str, cache: AsyncCacheProtocol) -> Schema:
+    cached: Optional[Schema] = await cache.get_schema(credentials, dialect)
 
-async def get_schema_detailed(credentials: DBConnection, dialect: str,
-                              cache: AsyncCacheProtocol) -> list[SchemaTable]:
-    """Detailed schema for the UI/GigaChat: columns + primary keys + indexes.
-
-    Cached with the same TTL as the simple schema so repeated Show Schema /
-    AI calls don't hit the DB every time.
-    """
-    cached: Optional[list[dict]] = await cache.get_detailed_schema(credentials, dialect)
     if cached is not None:
-        return [SchemaTable.model_validate(t) for t in cached]
+        return cached
 
     async with create_db_connection(credentials, dialect) as db_wrapper:
         columns: Sequence[tuple[str, str, str]] = await db_wrapper.fetch_schema_columns()
         primary_keys: set[tuple[str, str]] = await db_wrapper.fetch_primary_keys()
         indexed: set[tuple[str, str]] = await db_wrapper.fetch_indexed_columns()
 
-    tables: dict[str, list[SchemaColumn]] = {}
-    for table, column, dtype in columns:
-        tables.setdefault(table, []).append(
-            SchemaColumn(
-                name=column,
-                type=dtype,
-                isPrimaryKey=(table, column) in primary_keys,
-                isIndexed=(table, column) in indexed,
-            )
-        )
+    schema: Schema = _to_schema(columns, primary_keys, indexed)
 
-    result = [SchemaTable(name=name, columns=cols) for name, cols in tables.items()]
-    await cache.set_detailed_schema(credentials, dialect, [t.model_dump() for t in result])
-    return result
+    await cache.set_schema(credentials, dialect, schema)
+
+    return schema
 
 def analyze_sql_static(sql: str, dialect: Optional[str], schema: Optional[Schema] = None) -> list[StaticAnalyzeProblem]:
     problems: list[StaticAnalyzeProblem] = []
