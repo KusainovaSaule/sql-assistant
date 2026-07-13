@@ -4,7 +4,7 @@
     "url": "http://127.0.0.1:8000/api/v1/sql/analyze/static",
     "body": {
         "mimeType": "application/json",
-        "text": "{\n  \"sql\": \"select * from users join orders on users.id = orders.user_id\"\n}"
+        "text": "{\n  \"sql\": \"SELECT id FROM users WHERE LOWER(email) = 'admin@example.com'\",\n  \"dialect\": \"postgres\"\n}"
     },
     "headers": [
         {
@@ -13,8 +13,5 @@
         }
     ],
     "parameters": [],
-    "authentication": {
-        "type": "No Auth"
-    },
-    "sortOrder": 11
+    "sortOrder": 26
 }

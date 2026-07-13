@@ -1,3 +1,4 @@
+import asyncio
 from typing import Optional
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
@@ -29,7 +30,7 @@ async def analyze_static(req: SQLRequest, cache: CacheDep) -> StaticAnalyzeRespo
     schema: Optional[Schema] = None
     if (req.db and req.dialect):
         schema = await get_schema(req.db, req.dialect, cache)
-    problems: list[StaticAnalyzeProblem] = analyze_sql_static(req.sql, req.dialect, schema)
+    problems: list[StaticAnalyzeProblem] = await asyncio.to_thread(analyze_sql_static, req.sql, req.dialect, schema)
     return StaticAnalyzeResponse(problems=problems)
 
 def _build_schema_meta(tables: list[SchemaTable]) -> str:
@@ -61,8 +62,7 @@ async def analyze_ai(req: SQLRequest, cache: CacheDep) -> AIAnalyzeResponse:
     schema: Optional[Schema] = None
     if (req.db and req.dialect):
         schema = await get_schema(req.db, req.dialect, cache)
-
-    static_problems: list[StaticAnalyzeProblem] = analyze_sql_static(req.sql, req.dialect, schema)
+    static_problems: list[StaticAnalyzeProblem] = await asyncio.to_thread(analyze_sql_static, req.sql, req.dialect, schema)
     schema_meta: Optional[str] = await _fetch_schema_meta(req, cache)
 
     try:
