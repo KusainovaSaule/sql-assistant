@@ -47,11 +47,11 @@ def _build_schema_meta(tables: list[SchemaTable]) -> str:
             lines.append(f"- {t.name}: {'; '.join(parts)}")
     return "\n".join(lines)
 
-async def _fetch_schema_meta(req: SQLRequest) -> Optional[str]:
+async def _fetch_schema_meta(req: SQLRequest, cache: AsyncCacheProtocol) -> Optional[str]:
     if not (req.db and req.dialect):
         return None
     try:
-        detailed = await get_schema_detailed(req.db, req.dialect)
+        detailed = await get_schema_detailed(req.db, req.dialect, cache)
         return _build_schema_meta(detailed)
     except Exception:
         return None
@@ -63,7 +63,7 @@ async def analyze_ai(req: SQLRequest, cache: CacheDep) -> AIAnalyzeResponse:
         schema = await get_schema(req.db, req.dialect, cache)
 
     static_problems: list[StaticAnalyzeProblem] = analyze_sql_static(req.sql, req.dialect, schema)
-    schema_meta: Optional[str] = await _fetch_schema_meta(req)
+    schema_meta: Optional[str] = await _fetch_schema_meta(req, cache)
 
     try:
         # Вызов GigaChat
@@ -78,7 +78,7 @@ async def optimize_ai(req: SQLRequest, cache: CacheDep) -> AIOptimizeResponse:
     if (req.db and req.dialect):
         schema = await get_schema(req.db, req.dialect, cache)
 
-    schema_meta: Optional[str] = await _fetch_schema_meta(req)
+    schema_meta: Optional[str] = await _fetch_schema_meta(req, cache)
 
     try:
         response: AIOptimizeResponse = await optimize_query_with_ai(req.sql, schema, cache, schema_meta)
@@ -87,10 +87,10 @@ async def optimize_ai(req: SQLRequest, cache: CacheDep) -> AIOptimizeResponse:
         raise HTTPException(status_code=500, detail=f"Ошибка GigaChat: {str(e)}")
 
 @app.post("/api/v1/sql/schema", response_model=SchemaResponse)
-async def get_db_schema(req: SchemaRequest) -> SchemaResponse:
+async def get_db_schema(req: SchemaRequest, cache: CacheDep) -> SchemaResponse:
     """Подключается к БД, извлекает схему для webview: таблицы, колонки, типы, ключи, индексы."""
     try:
-        tables = await get_schema_detailed(req.db, req.dialect)
+        tables = await get_schema_detailed(req.db, req.dialect, cache)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка подключения к БД: {str(e)}")
 

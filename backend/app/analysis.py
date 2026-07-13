@@ -33,12 +33,17 @@ async def get_schema(credentials: DBConnection, dialect: str, cache: AsyncCacheP
 
     return schema
 
-async def get_schema_detailed(credentials: DBConnection, dialect: str) -> list[SchemaTable]:
+async def get_schema_detailed(credentials: DBConnection, dialect: str,
+                              cache: AsyncCacheProtocol) -> list[SchemaTable]:
     """Detailed schema for the UI/GigaChat: columns + primary keys + indexes.
 
-    Not cached — the simple get_schema (used for qualify/AI context) stays the
-    cached fast path; this richer view is fetched on demand for Show Schema.
+    Cached with the same TTL as the simple schema so repeated Show Schema /
+    AI calls don't hit the DB every time.
     """
+    cached: Optional[list[dict]] = await cache.get_detailed_schema(credentials, dialect)
+    if cached is not None:
+        return [SchemaTable.model_validate(t) for t in cached]
+
     async with create_db_connection(credentials, dialect) as db_wrapper:
         columns: Sequence[tuple[str, str, str]] = await db_wrapper.fetch_schema_columns()
         primary_keys: set[tuple[str, str]] = await db_wrapper.fetch_primary_keys()
@@ -55,7 +60,9 @@ async def get_schema_detailed(credentials: DBConnection, dialect: str) -> list[S
             )
         )
 
-    return [SchemaTable(name=name, columns=cols) for name, cols in tables.items()]
+    result = [SchemaTable(name=name, columns=cols) for name, cols in tables.items()]
+    await cache.set_detailed_schema(credentials, dialect, [t.model_dump() for t in result])
+    return result
 
 def analyze_sql_static(sql: str, dialect: Optional[str], schema: Optional[Schema] = None) -> list[StaticAnalyzeProblem]:
     problems: list[StaticAnalyzeProblem] = []

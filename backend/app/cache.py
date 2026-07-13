@@ -28,6 +28,14 @@ class AsyncCacheProtocol(Protocol):
         self, credentials: DBConnection, dialect: str
     ) -> None: ...
 
+    async def get_detailed_schema(
+        self, credentials: DBConnection, dialect: str, ttl: int = ...
+    ) -> Optional[list[dict]]: ...
+
+    async def set_detailed_schema(
+        self, credentials: DBConnection, dialect: str, tables: list[dict]
+    ) -> None: ...
+
     async def add_recommendation(
         self, operation: str, sql: str, result: dict
     ) -> None: ...
@@ -70,6 +78,14 @@ class SQLiteCache:
                     sql         TEXT NOT NULL,
                     result_json TEXT NOT NULL,
                     created_at  REAL NOT NULL
+                )
+            """)
+
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS detailed_schema_cache (
+                    cache_key   TEXT PRIMARY KEY,
+                    schema_json TEXT NOT NULL,
+                    cached_at   REAL NOT NULL
                 )
             """)
 
@@ -121,6 +137,35 @@ class SQLiteCache:
         key = self._make_cache_key(credentials, dialect)
         async with self._connect() as conn:
             await conn.execute("DELETE FROM schema_cache WHERE cache_key = ?", (key,))
+
+    async def get_detailed_schema(self, credentials: DBConnection, dialect: str,
+                                  ttl: int = DEFAULT_TTL_SECONDS) -> Optional[list[dict]]:
+        key = self._make_cache_key(credentials, dialect)
+        async with self._connect() as conn:
+            cursor = await conn.execute(
+                "SELECT schema_json, cached_at FROM detailed_schema_cache WHERE cache_key = ?",
+                (key,)
+            )
+            row = await cursor.fetchone()
+
+        if row is None:
+            return None
+        schema_json, cached_at = row
+        if time.time() - cached_at > ttl:
+            return None
+        return json.loads(schema_json)
+
+    async def set_detailed_schema(self, credentials: DBConnection, dialect: str, tables: list[dict]) -> None:
+        key = self._make_cache_key(credentials, dialect)
+        async with self._connect() as conn:
+            await conn.execute("""
+                INSERT INTO detailed_schema_cache (cache_key, schema_json, cached_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(cache_key) DO UPDATE SET
+                    schema_json = excluded.schema_json,
+                    cached_at   = excluded.cached_at
+            """, (key, json.dumps(tables), time.time()))
+            await conn.commit()
 
     async def add_recommendation(self, operation: str, sql: str, result: dict) -> None:
         async with self._connect() as conn:
