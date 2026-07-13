@@ -68,4 +68,4 @@ async def get_history(
     """Возвращает страницу истории рекомендаций из SQLite с пагинацией."""
     history = await cache.get_all_recommendations(limit=limit, offset=offset)
     total = await cache.count_recommendations()
-    return HistoryResponse(history=history, total=total, limit=limit, offset=offset)
+    return HistoryResponse(history=history, total=total)

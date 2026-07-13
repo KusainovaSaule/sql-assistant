@@ -38,5 +38,3 @@ class AIOptimizeResponse(BaseModel):
 class HistoryResponse(BaseModel):
     history: List[dict]
     total: int = 0
-    limit: int = 30
-    offset: int = 0

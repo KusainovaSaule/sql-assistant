@@ -209,7 +209,12 @@ export function activate(context: vscode.ExtensionContext) {
     }
     try {
       const history = await getHistory(HISTORY_PAGE_SIZE, offset);
-      panel.updateState({ historyResult: history, error: undefined });
+      // Backend returns { history, total }; the client knows the page it
+      // requested, so we attach limit/offset here for the pager to render.
+      panel.updateState({
+        historyResult: { ...history, limit: HISTORY_PAGE_SIZE, offset },
+        error: undefined,
+      });
     } catch (err: any) {
       panel.updateState({ error: err?.message || "Ошибка получения истории." });
       vscode.window.showErrorMessage(`Ошибка получения истории: ${err?.message || err}`);
