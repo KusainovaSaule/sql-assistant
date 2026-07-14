@@ -3,7 +3,7 @@ from typing import Optional
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 
 from .dependencies import CacheDep
 from .cache import AsyncCacheProtocol, SQLiteCache
@@ -73,7 +73,12 @@ async def get_db_schema(req: SchemaRequest, cache: CacheDep) -> SchemaResponse:
     return SchemaResponse(dbType=req.dialect, tables=tables)
 
 @app.get("/api/v1/history", response_model=HistoryResponse)
-async def get_history(cache: CacheDep) -> HistoryResponse:
-    """Возвращает сохраненную в SQLite историю предыдущих рекомендаций и оптимизаций."""
-    history = await cache.get_all_recommendations()
-    return HistoryResponse(history=history)
+async def get_history(
+    cache: CacheDep,
+    limit: int = Query(30, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+) -> HistoryResponse:
+    """Возвращает страницу истории рекомендаций из SQLite с пагинацией."""
+    history = await cache.get_all_recommendations(limit=limit, offset=offset)
+    total = await cache.count_recommendations()
+    return HistoryResponse(history=history, total=total)

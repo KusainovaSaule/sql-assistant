@@ -37,7 +37,7 @@ class AIOptimizeResponse(BaseModel):
 
 class HistoryResponse(BaseModel):
     history: List[dict]
-
+    total: int = 0
 class SchemaRequest(BaseModel):
     db: DBConnection
     dialect: str

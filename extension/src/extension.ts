@@ -10,6 +10,17 @@ import {
 } from "./apiClient";
 import { SqlAssistantPanel } from "./panel";
 
+const HISTORY_PAGE_SIZE = 30;
+
+// Last SQL-bearing editor. The webview steals focus, which clears
+// vscode.window.activeTextEditor, so we remember the last real editor
+// to keep tab-triggered Analyze/Optimize working.
+let lastEditor: vscode.TextEditor | undefined;
+
+function getEditor(): vscode.TextEditor | undefined {
+  return vscode.window.activeTextEditor ?? lastEditor;
+}
+
 function getSelectedSql(editor: vscode.TextEditor): string | null {
   const selection = editor.selection;
   if (!selection.isEmpty) {
@@ -48,183 +59,175 @@ function getDialect(): string | undefined {
 }
 
 export function activate(context: vscode.ExtensionContext) {
-  const analyzeCmd = vscode.commands.registerCommand(
-    "sqlAssistant.analyzeQuery",
-    async () => {
-      const editor = vscode.window.activeTextEditor;
-      if (!editor) {
-        vscode.window.showErrorMessage("Нет активного редактора.");
-        return;
+  lastEditor = vscode.window.activeTextEditor;
+  context.subscriptions.push(
+    vscode.window.onDidChangeActiveTextEditor((ed) => {
+      if (ed) {
+        lastEditor = ed;
       }
-
-      const sql = getSelectedSql(editor);
-      if (!sql || sql.trim().length === 0) {
-        vscode.window.showErrorMessage("Выделите SQL-запрос или откройте файл с SQL.");
-        return;
-      }
-
-      const panel = SqlAssistantPanel.createOrShow(context.extensionUri);
-      panel.updateState({
-        mode: "analysis",
-        staticResult: undefined,
-        aiResult: undefined,
-        error: undefined,
-      });
-
-      try {
-        const dialect = getDialect();
-        const staticResult = await analyzeStatic(sql, dialect);
-        panel.updateState({ staticResult });
-
-        const config = getDbConfig();
-        const aiResult = await analyzeAi(sql, config, dialect);
-        panel.updateState({ aiResult });
-      } catch (err: any) {
-        panel.updateState({
-          error: err?.message || "Ошибка анализа запроса.",
-        });
-        vscode.window.showErrorMessage(
-          `Ошибка анализа запроса: ${err?.message || err}`
-        );
-      }
-    }
+    })
   );
 
-  const optimizeCmd = vscode.commands.registerCommand(
-    "sqlAssistant.optimizeQuery",
-    async () => {
-      const editor = vscode.window.activeTextEditor;
-      if (!editor) {
-        vscode.window.showErrorMessage("Нет активного редактора.");
-        return;
+  // Wire the webview tab/pager callbacks to the operations below.
+  const wire = (panel: SqlAssistantPanel) => {
+    panel.onRequestMode = (mode) => {
+      if (mode === "analysis") {
+        runAnalyze();
+      } else if (mode === "optimization") {
+        runOptimize();
+      } else if (mode === "schema") {
+        runShowSchema();
+      } else if (mode === "history") {
+        loadHistoryPage(0);
       }
+    };
+    panel.onRequestHistoryPage = loadHistoryPage;
+  };
 
-      const sql = getSelectedSql(editor);
-      if (!sql || sql.trim().length === 0) {
-        vscode.window.showErrorMessage("Выделите SQL-запрос или откройте файл с SQL.");
-        return;
-      }
-
-      const panel = SqlAssistantPanel.createOrShow(context.extensionUri);
-      panel.updateState({
-        mode: "optimization",
-        optimizeResult: undefined,
-        error: undefined,
-      });
-
-      try {
-        const config = getDbConfig();
-        const dialect = getDialect();
-        const result = await optimizeQuery(sql, config, dialect);
-        panel.updateState({ optimizeResult: result });
-      } catch (err: any) {
-        panel.updateState({
-          error: err?.message || "Ошибка оптимизации запроса.",
-        });
-        vscode.window.showErrorMessage(
-          `Ошибка оптимизации запроса: ${err?.message || err}`
-        );
-      }
+  const runAnalyze = async () => {
+    const editor = getEditor();
+    if (!editor) {
+      vscode.window.showErrorMessage("Нет активного редактора.");
+      return;
     }
-  );
-
-  const formatCmd = vscode.commands.registerCommand(
-    "sqlAssistant.formatQuery",
-    async () => {
-      const editor = vscode.window.activeTextEditor;
-      if (!editor) {
-        vscode.window.showErrorMessage("Нет активного редактора.");
-        return;
-      }
-
-      const sql = getSelectedSql(editor);
-      if (!sql || sql.trim().length === 0) {
-        vscode.window.showErrorMessage("Выделите SQL-запрос или откройте файл с SQL.");
-        return;
-      }
-
-      try {
-        const result = await formatQuery(sql);
-        await editor.edit((editBuilder) => {
-          const selection = editor.selection;
-          if (!selection.isEmpty) {
-            editBuilder.replace(selection, result.formatted_sql);
-          } else {
-            const fullRange = new vscode.Range(
-              editor.document.positionAt(0),
-              editor.document.positionAt(editor.document.getText().length)
-            );
-            editBuilder.replace(fullRange, result.formatted_sql);
-          }
-        });
-      } catch (err: any) {
-        vscode.window.showErrorMessage(
-          `Ошибка форматирования запроса: ${err?.message || err}`
-        );
-      }
+    const sql = getSelectedSql(editor);
+    if (!sql || sql.trim().length === 0) {
+      vscode.window.showErrorMessage("Выделите SQL-запрос или откройте файл с SQL.");
+      return;
     }
-  );
 
-  const schemaCmd = vscode.commands.registerCommand(
-    "sqlAssistant.showSchema",
-    async () => {
-      const panel = SqlAssistantPanel.createOrShow(context.extensionUri);
-      panel.updateState({
-        mode: "schema",
-        schemaInfo: undefined,
-        error: undefined,
-      });
+    const panel = SqlAssistantPanel.createOrShow(context.extensionUri);
+    wire(panel);
+    panel.updateState({
+      mode: "analysis",
+      staticResult: undefined,
+      aiResult: undefined,
+      error: undefined,
+    });
 
-      try {
-        const config = getDbConfig();
-        if (!config) {
-          panel.updateState({
-            error: "Не настроено подключение к БД (sqlAssistant.db.*).",
-          });
-          vscode.window.showErrorMessage(
-            "Не настроено подключение к БД (sqlAssistant.db.*)."
+    try {
+      const dialect = getDialect();
+      const staticResult = await analyzeStatic(sql, dialect);
+      panel.updateState({ staticResult });
+
+      const config = getDbConfig();
+      const aiResult = await analyzeAi(sql, config, dialect);
+      panel.updateState({ aiResult });
+    } catch (err: any) {
+      panel.updateState({ error: err?.message || "Ошибка анализа запроса." });
+      vscode.window.showErrorMessage(`Ошибка анализа запроса: ${err?.message || err}`);
+    }
+  };
+
+  const runOptimize = async () => {
+    const editor = getEditor();
+    if (!editor) {
+      vscode.window.showErrorMessage("Нет активного редактора.");
+      return;
+    }
+    const sql = getSelectedSql(editor);
+    if (!sql || sql.trim().length === 0) {
+      vscode.window.showErrorMessage("Выделите SQL-запрос или откройте файл с SQL.");
+      return;
+    }
+
+    const panel = SqlAssistantPanel.createOrShow(context.extensionUri);
+    wire(panel);
+    panel.updateState({
+      mode: "optimization",
+      optimizeResult: undefined,
+      error: undefined,
+    });
+
+    try {
+      const config = getDbConfig();
+      const dialect = getDialect();
+      const result = await optimizeQuery(sql, config, dialect);
+      panel.updateState({ optimizeResult: result });
+    } catch (err: any) {
+      panel.updateState({ error: err?.message || "Ошибка оптимизации запроса." });
+      vscode.window.showErrorMessage(`Ошибка оптимизации запроса: ${err?.message || err}`);
+    }
+  };
+
+  const runFormat = async () => {
+    const editor = getEditor();
+    if (!editor) {
+      vscode.window.showErrorMessage("Нет активного редактора.");
+      return;
+    }
+    const sql = getSelectedSql(editor);
+    if (!sql || sql.trim().length === 0) {
+      vscode.window.showErrorMessage("Выделите SQL-запрос или откройте файл с SQL.");
+      return;
+    }
+
+    try {
+      const result = await formatQuery(sql);
+      await editor.edit((editBuilder) => {
+        const selection = editor.selection;
+        if (!selection.isEmpty) {
+          editBuilder.replace(selection, result.formatted_sql);
+        } else {
+          const fullRange = new vscode.Range(
+            editor.document.positionAt(0),
+            editor.document.positionAt(editor.document.getText().length)
           );
-          return;
+          editBuilder.replace(fullRange, result.formatted_sql);
         }
-
-        const schema = await getSchema(config, getDialect());
-        panel.updateState({ schemaInfo: schema });
-      } catch (err: any) {
-        panel.updateState({
-          error: err?.message || "Ошибка получения схемы.",
-        });
-        vscode.window.showErrorMessage(
-          `Ошибка получения схемы: ${err?.message || err}`
-        );
-      }
+      });
+    } catch (err: any) {
+      vscode.window.showErrorMessage(`Ошибка форматирования запроса: ${err?.message || err}`);
     }
-  );
+  };
 
-  const historyCmd = vscode.commands.registerCommand(
-    "sqlAssistant.showHistory",
-    async () => {
-      const panel = SqlAssistantPanel.createOrShow(context.extensionUri);
+  const runShowSchema = async () => {
+    const panel = SqlAssistantPanel.createOrShow(context.extensionUri);
+    wire(panel);
+    panel.updateState({ mode: "schema", schemaInfo: undefined, error: undefined });
+
+    try {
+      const config = getDbConfig();
+      if (!config) {
+        panel.updateState({ error: "Не настроено подключение к БД (sqlAssistant.db.*)." });
+        vscode.window.showErrorMessage("Не настроено подключение к БД (sqlAssistant.db.*).");
+        return;
+      }
+      const schema = await getSchema(config, getDialect());
+      panel.updateState({ schemaInfo: schema });
+    } catch (err: any) {
+      panel.updateState({ error: err?.message || "Ошибка получения схемы." });
+      vscode.window.showErrorMessage(`Ошибка получения схемы: ${err?.message || err}`);
+    }
+  };
+
+  const loadHistoryPage = async (offset: number) => {
+    const panel = SqlAssistantPanel.createOrShow(context.extensionUri);
+    wire(panel);
+    if (panel.getMode() !== "history") {
+      panel.updateState({ mode: "history", historyResult: undefined, error: undefined });
+    }
+    try {
+      const history = await getHistory(HISTORY_PAGE_SIZE, offset);
+      // Backend returns { history, total }; the client knows the page it
+      // requested, so we attach limit/offset here for the pager to render.
       panel.updateState({
-        mode: "history",
-        historyResult: undefined,
+        historyResult: { ...history, limit: HISTORY_PAGE_SIZE, offset },
         error: undefined,
       });
-
-      try {
-        const history = await getHistory(50);
-        panel.updateState({ historyResult: history });
-      } catch (err: any) {
-        panel.updateState({
-          error: err?.message || "Ошибка получения истории.",
-        });
-        vscode.window.showErrorMessage(
-          `Ошибка получения истории: ${err?.message || err}`
-        );
-      }
+    } catch (err: any) {
+      panel.updateState({ error: err?.message || "Ошибка получения истории." });
+      vscode.window.showErrorMessage(`Ошибка получения истории: ${err?.message || err}`);
     }
-  );
+  };
 
-  context.subscriptions.push(analyzeCmd, optimizeCmd, formatCmd, schemaCmd, historyCmd);
+  context.subscriptions.push(
+    vscode.commands.registerCommand("sqlAssistant.analyzeQuery", runAnalyze),
+    vscode.commands.registerCommand("sqlAssistant.optimizeQuery", runOptimize),
+    vscode.commands.registerCommand("sqlAssistant.formatQuery", runFormat),
+    vscode.commands.registerCommand("sqlAssistant.showSchema", runShowSchema),
+    vscode.commands.registerCommand("sqlAssistant.showHistory", () => loadHistoryPage(0))
+  );
 }
 
 export function deactivate() {}
