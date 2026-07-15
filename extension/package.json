@@ -50,6 +50,11 @@
         "command": "sqlAssistant.showHistory",
         "title": "Show Query History",
         "category": "SQL Assistant"
+      },
+      {
+        "command": "sqlAssistant.setDbPassword",
+        "title": "SQL Assistant: Set Database Password",
+        "category": "SQL Assistant"
       }
     ],
     "keybindings": [
@@ -82,11 +87,6 @@
           "type": "string",
           "default": "",
           "description": "Database user"
-        },
-        "sqlAssistant.db.password": {
-          "type": "string",
-          "default": "",
-          "description": "Database password"
         },
         "sqlAssistant.db.database": {
           "type": "string",
