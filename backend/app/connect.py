@@ -109,9 +109,7 @@ class _DBWrapper:
     async def close(self) -> None:
         await self.connection.close()
 
-@contextlib.asynccontextmanager
-async def create_db_connection(credentials: DBConnection, dialect: str) -> AsyncGenerator[_DBWrapper, None]:
-    # Parse basic path assuming format 'host:port/database' or 'host/database'
+def _parse_credentials(credentials: DBConnection, dialect: str) -> tuple[str, str, str, int]:
     parts: list[str] = credentials.path.split('/')
     host_port = parts[0]
     db = parts[1] if len(parts) > 1 else ''
@@ -127,6 +125,13 @@ async def create_db_connection(credentials: DBConnection, dialect: str) -> Async
         port = 5432 if dialect == 'postgres' else 3306
 
     password = credentials.password.get_secret_value()
+
+    return password, db, host, port
+
+@contextlib.asynccontextmanager
+async def create_db_connection(credentials: DBConnection, dialect: str) -> AsyncGenerator[_DBWrapper, None]:
+    # Parse basic path assuming format 'host:port/database' or 'host/database'
+    password, db, host, port = _parse_credentials(credentials, dialect)
 
     if dialect == 'postgres':
         try:
