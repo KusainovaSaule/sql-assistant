@@ -1,18 +1,17 @@
 {
     "_type": "request",
     "method": "POST",
+    "url": "http://127.0.0.1:8000/api/v1/sql/analyze/static",
     "body": {
         "mimeType": "application/json",
-        "text": "{\n  \"sql\": \"select * form users join orders on users.id = orders.user_id\"\n}"
+        "text": "{\n  \"sql\": \"DELETE FROM users\",\n  \"dialect\": \"postgres\"\n}"
     },
-    "url": "http://127.0.0.1:8000/api/v1/sql/analyze/static",
-    "sortOrder": 4,
-    "parameters": [],
     "headers": [
         {
             "name": "Content-Type",
             "value": "application/json"
         }
     ],
-    "pathParameters": []
+    "parameters": [],
+    "sortOrder": 23
 }

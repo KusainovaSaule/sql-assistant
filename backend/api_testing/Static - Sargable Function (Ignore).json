@@ -3,10 +3,10 @@
     "method": "POST",
     "body": {
         "mimeType": "application/json",
-        "text": "{\n  \"sql\": \"select * form users join orders on users.id = orders.user_id\"\n}"
+        "text": "{\n  \"sql\": \"SELECT a, b FROM users WHERE user_id = COALESCE(input_id, 0)\",\n  \"dialect\": \"postgres\"\n}"
     },
     "url": "http://127.0.0.1:8000/api/v1/sql/analyze/static",
-    "sortOrder": 4,
+    "sortOrder": 0,
     "parameters": [],
     "headers": [
         {

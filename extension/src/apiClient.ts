@@ -74,10 +74,18 @@ export async function formatQuery(sql: string) {
   return post(`${BASE_URL}/sql/format`, { sql });
 }
 
-export async function getSchema(config: DbConfig) {
-  return post(`${BASE_URL}/sql/schema`, { db: config });
+export async function getSchema(config: DbConfig, dialect?: string) {
+  const body = {
+    db: {
+      path: `${config.host}:${config.port}/${config.database}`,
+      user: config.user,
+      password: config.password,
+    },
+    dialect: dialect || config.dbType,
+  };
+  return post(`${BASE_URL}/sql/schema`, body);
 }
 
-export async function getHistory(limit: number = 50) {
-  return get(`${BASE_URL}/history?limit=${limit}`);
+export async function getHistory(limit: number = 30, offset: number = 0) {
+  return get(`${BASE_URL}/history?limit=${limit}&offset=${offset}`);
 }

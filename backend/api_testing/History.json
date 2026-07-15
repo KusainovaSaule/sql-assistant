@@ -5,7 +5,7 @@
         "mimeType": "No Body"
     },
     "url": "http://localhost:8000/api/v1/history",
-    "sortOrder": 5,
+    "sortOrder": 7,
     "parameters": [],
     "pathParameters": []
 }

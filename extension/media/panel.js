@@ -180,7 +180,44 @@ function render() {
         historyList.innerHTML = "Нет истории.";
       }
     }
+    renderHistoryPager(historyResult);
   }
+}
+
+function renderHistoryPager(historyResult) {
+  const pager = document.getElementById("history-pager");
+  if (!pager) return;
+  pager.innerHTML = "";
+  if (!historyResult || !historyResult.history) return;
+
+  const total = historyResult.total || 0;
+  const limit = historyResult.limit || 30;
+  const offset = historyResult.offset || 0;
+  const count = historyResult.history.length;
+  if (total <= limit && offset === 0) return;
+
+  const from = total === 0 ? 0 : offset + 1;
+  const to = offset + count;
+
+  const prev = document.createElement("button");
+  prev.textContent = "← Назад";
+  prev.disabled = offset <= 0;
+  prev.onclick = () =>
+    vscode.postMessage({ command: "loadHistoryPage", offset: Math.max(0, offset - limit) });
+
+  const info = document.createElement("span");
+  info.className = "pager-info";
+  info.textContent = `${from}–${to} из ${total}`;
+
+  const next = document.createElement("button");
+  next.textContent = "Вперёд →";
+  next.disabled = to >= total;
+  next.onclick = () =>
+    vscode.postMessage({ command: "loadHistoryPage", offset: offset + limit });
+
+  pager.appendChild(prev);
+  pager.appendChild(info);
+  pager.appendChild(next);
 }
 
 window.addEventListener("message", (event) => {
@@ -193,7 +230,9 @@ window.addEventListener("message", (event) => {
 
 document.querySelectorAll(".tab").forEach((tab) => {
   tab.addEventListener("click", () => {
-    setMode(tab.dataset.mode);
+    const mode = tab.dataset.mode;
+    setMode(mode);
+    vscode.postMessage({ command: "runMode", mode });
   });
 });
 

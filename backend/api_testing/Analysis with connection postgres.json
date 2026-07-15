@@ -6,7 +6,7 @@
         "text": "{\n    \"sql\": \"SELECT * FROM users WHERE active = true;\",\n    \"dialect\": \"postgres\",\n    \"db\": {\n        \"path\": \"localhost:5432/production_db\",\n        \"user\": \"admin\",\n        \"password\": \"test\"\n    }\n}"
     },
     "url": "http://127.0.0.1:8000/api/v1/sql/analyze/static",
-    "sortOrder": 3,
+    "sortOrder": 5,
     "parameters": [],
     "headers": [
         {
