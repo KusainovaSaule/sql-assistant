@@ -7,6 +7,13 @@ import mysql.connector.aio as mysql
 from .models import DBConnection
 
 
+class SchemaExtractionError(Exception):
+    """Base error for anything that goes wrong extracting a DB schema."""
+
+class UnsupportedDialectError(SchemaExtractionError): pass
+class DBConnectionError(SchemaExtractionError): pass
+class InvalidDBCredentialsError(SchemaExtractionError): pass
+
 class _DBWrapper:
     """Wrapper for DB operations to be dialect agnostic"""
 
@@ -111,7 +118,10 @@ async def create_db_connection(credentials: DBConnection, dialect: str) -> Async
     
     if ':' in host_port:
         host, port_str = host_port.split(':')
-        port = int(port_str)
+        try:
+            port = int(port_str)
+        except ValueError:
+            raise InvalidDBCredentialsError(f"Invalid port: {port_str}")
     else:
         host = host_port
         port = 5432 if dialect == 'postgres' else 3306
@@ -119,18 +129,26 @@ async def create_db_connection(credentials: DBConnection, dialect: str) -> Async
     password = credentials.password.get_secret_value()
 
     if dialect == 'postgres':
-        connection = await asyncpg.connect(user=credentials.user, password=password, database=db, host=host, port=port)
+        try:
+            connection = await asyncpg.connect(user=credentials.user, password=password, database=db, host=host, port=port)
+        except asyncpg.exceptions.PostgresError as e:
+            raise DBConnectionError(f"Could not connect to MySQL: {e}") from e
+
         wrapper = _DBWrapper(connection, dialect)
         try:
             yield wrapper
         finally:
             await wrapper.close()
     elif dialect == 'mysql':
-        connection = await mysql.connect(user=credentials.user, password=password, database=db, host=host, port=port)
+        try:
+            connection = await mysql.connect(user=credentials.user, password=password, database=db, host=host, port=port)
+        except mysql.connection.Error as e:
+            raise DBConnectionError(f"Could not connect to MySQL: {e}") from e
+
         wrapper = _DBWrapper(connection, dialect)
         try:
             yield wrapper
         finally:
             await wrapper.close()
     else:
-        raise ValueError(f"Unsupported dialect for schema extraction: {dialect}")
+        raise UnsupportedDialectError(f"Unsupported dialect for schema extraction: {dialect}")
