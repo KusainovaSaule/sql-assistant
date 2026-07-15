@@ -38,3 +38,20 @@ class AIOptimizeResponse(BaseModel):
 class HistoryResponse(BaseModel):
     history: List[dict]
     total: int = 0
+class SchemaRequest(BaseModel):
+    db: DBConnection
+    dialect: str
+
+class SchemaColumn(BaseModel):
+    name: str
+    type: str
+    isPrimaryKey: bool = False
+    isIndexed: bool = False
+
+class SchemaTable(BaseModel):
+    name: str
+    columns: List[SchemaColumn]
+
+class SchemaResponse(BaseModel):
+    dbType: str
+    tables: List[SchemaTable]

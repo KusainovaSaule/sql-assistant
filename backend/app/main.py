@@ -8,9 +8,10 @@ from fastapi import FastAPI, HTTPException, Query
 from .dependencies import CacheDep
 from .cache import AsyncCacheProtocol, SQLiteCache
 from .format import format
-from .models import AIAnalyzeResponse, AIOptimizeResponse, FormatResponse, HistoryResponse, StaticAnalyzeProblem, StaticAnalyzeResponse, SQLRequest
+from .models import AIAnalyzeResponse, AIOptimizeResponse, FormatResponse, HistoryResponse, SchemaRequest, SchemaResponse, SchemaTable, StaticAnalyzeProblem, StaticAnalyzeResponse, SQLRequest
 from .analysis import Schema, analyze_sql_static, get_schema
 from .gigachat_client import analyze_query_with_ai, optimize_query_with_ai
+from .schema_mapper import schema_to_tables
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -38,7 +39,6 @@ async def analyze_ai(req: SQLRequest, cache: CacheDep) -> AIAnalyzeResponse:
     schema: Optional[Schema] = None
     if (req.db and req.dialect):
         schema = await get_schema(req.db, req.dialect, cache)
-        
     static_problems: list[StaticAnalyzeProblem] = await asyncio.to_thread(analyze_sql_static, req.sql, req.dialect, schema)
 
     try:
@@ -53,12 +53,24 @@ async def optimize_ai(req: SQLRequest, cache: CacheDep) -> AIOptimizeResponse:
     schema: Optional[Schema] = None
     if (req.db and req.dialect):
         schema = await get_schema(req.db, req.dialect, cache)
-        
+
     try:
         response: AIOptimizeResponse = await optimize_query_with_ai(req.sql, schema, cache)
         return response
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка GigaChat: {str(e)}")
+
+@app.post("/api/v1/sql/schema", response_model=SchemaResponse)
+async def get_db_schema(req: SchemaRequest, cache: CacheDep) -> SchemaResponse:
+    """Подключается к БД, извлекает схему для webview: таблицы, колонки, типы, ключи, индексы."""
+    try:
+        schema: Schema = await get_schema(req.db, req.dialect, cache)
+        tables: list[SchemaTable] = schema_to_tables(schema)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка подключения к БД: {str(e)}")
+
+    return SchemaResponse(dbType=req.dialect, tables=tables)
 
 @app.get("/api/v1/history", response_model=HistoryResponse)
 async def get_history(

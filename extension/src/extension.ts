@@ -193,7 +193,7 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.showErrorMessage("Не настроено подключение к БД (sqlAssistant.db.*).");
         return;
       }
-      const schema = await getSchema(config);
+      const schema = await getSchema(config, getDialect());
       panel.updateState({ schemaInfo: schema });
     } catch (err: any) {
       panel.updateState({ error: err?.message || "Ошибка получения схемы." });

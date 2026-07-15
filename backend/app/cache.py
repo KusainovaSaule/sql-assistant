@@ -7,7 +7,8 @@ from typing import Optional, Protocol
 
 from .models import DBConnection
 
-type Column = dict[str, str]
+type ColumnProperties = dict[str, str | bool]
+type Column = dict[str, ColumnProperties]
 type Schema = dict[str, Column]
 
 DB_PATH = Path(__file__).parent.parent / "_cache" / "sql_assistant.db"

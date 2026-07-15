@@ -39,6 +39,66 @@ class _DBWrapper:
                 await cur.close()
         return []
 
+    async def fetch_primary_keys(self) -> set[tuple[str, str]]:
+        """Returns set of (table_name, column_name) that are part of a primary key."""
+        if self.dialect == 'postgres':
+            query = """
+                SELECT tc.table_name, kcu.column_name
+                FROM information_schema.table_constraints tc
+                JOIN information_schema.key_column_usage kcu
+                  ON tc.constraint_name = kcu.constraint_name
+                 AND tc.table_schema = kcu.table_schema
+                WHERE tc.constraint_type = 'PRIMARY KEY'
+                  AND tc.table_schema = 'public';
+            """
+            records = await self.connection.fetch(query)
+            return {(r['table_name'], r['column_name']) for r in records}
+
+        elif self.dialect == 'mysql':
+            query = """
+                SELECT table_name, column_name
+                FROM information_schema.key_column_usage
+                WHERE constraint_name = 'PRIMARY'
+                  AND table_schema = DATABASE();
+            """
+            cur = await self.connection.cursor()
+            try:
+                await cur.execute(query)
+                records = await cur.fetchall()
+                return {(r[0], r[1]) for r in records}
+            finally:
+                await cur.close()
+        return set()
+
+    async def fetch_indexed_columns(self) -> set[tuple[str, str]]:
+        """Returns set of (table_name, column_name) that are covered by any index."""
+        if self.dialect == 'postgres':
+            query = """
+                SELECT t.relname AS table_name, a.attname AS column_name
+                FROM pg_index ix
+                JOIN pg_class t ON t.oid = ix.indrelid
+                JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
+                JOIN pg_namespace n ON n.oid = t.relnamespace
+                WHERE n.nspname = 'public' AND t.relkind = 'r';
+            """
+            records = await self.connection.fetch(query)
+            return {(r['table_name'], r['column_name']) for r in records}
+
+        elif self.dialect == 'mysql':
+            query = """
+                SELECT table_name, column_name
+                FROM information_schema.statistics
+                WHERE table_schema = DATABASE();
+            """
+            cur = await self.connection.cursor()
+            try:
+                await cur.execute(query)
+                records = await cur.fetchall()
+                return {(r[0], r[1]) for r in records}
+            finally:
+                await cur.close()
+        return set()
+
     async def close(self) -> None:
         await self.connection.close()
 

@@ -6,30 +6,41 @@ from sqlglot.errors import ParseError, OptimizeError
 from sqlglot.optimizer.qualify import qualify
 import sqlglot.expressions as exp
 
-from .cache import AsyncCacheProtocol
+from .cache import AsyncCacheProtocol, Schema
 
 from .connect import create_db_connection
 from .models import DBConnection, StaticAnalyzeProblem
 
 
-type Column = dict[str, str]
-type Schema = dict[str, Column]
+def _to_schema(columns: Sequence[tuple[str, str, str]],
+        primary_keys: set[tuple[str, str]],
+        indexed: set[tuple[str, str]]) -> Schema:
+    schema: Schema = {}
+    
+    for table, column, dtype in columns:
+        schema.setdefault(table, {}).setdefault(column, {"type": dtype})
+    
+    for table, column in primary_keys:
+        schema[table][column]["is_primary_key"] = True
+    
+    for table, column in indexed:
+        schema[table][column]["is_indexed"] = True
 
+    return schema
+        
 async def get_schema(credentials: DBConnection, dialect: str, cache: AsyncCacheProtocol) -> Schema:
-    schema: Optional[Schema] = await cache.get_schema(credentials, dialect)
+    cached: Optional[Schema] = await cache.get_schema(credentials, dialect)
 
-    if (schema is not None):
-        return schema
-    
-    schema = {}
-    
+    if cached is not None:
+        return cached
+
     async with create_db_connection(credentials, dialect) as db_wrapper:
         columns: Sequence[tuple[str, str, str]] = await db_wrapper.fetch_schema_columns()
-        for table, column, dtype in columns:
-            if table not in schema:
-                schema[table] = {}
-            schema[table][column] = dtype
-    
+        primary_keys: set[tuple[str, str]] = await db_wrapper.fetch_primary_keys()
+        indexed: set[tuple[str, str]] = await db_wrapper.fetch_indexed_columns()
+
+    schema: Schema = _to_schema(columns, primary_keys, indexed)
+
     await cache.set_schema(credentials, dialect, schema)
 
     return schema
@@ -62,8 +73,14 @@ def analyze_sql_static(sql: str, dialect: Optional[str], schema: Optional[Schema
                 if table_name not in schema:
                     raise OptimizeError(f"Table '{table_name}' does not exist in the schema.")
 
-            # Find column-level issues
-            expression = qualify(expression, schema=cast(dict[str, object], schema), dialect=dialect)
+            # Find column-level issues. sqlglot expects {table: {column: type}},
+            # so flatten the enriched schema (which carries type + PK/index) down
+            # to plain type strings for qualify.
+            qualify_schema = {
+                table: {col: str(props.get("type", "")) for col, props in cols.items()}
+                for table, cols in schema.items()
+            }
+            expression = qualify(expression, schema=cast(dict[str, object], qualify_schema), dialect=dialect)
         except OptimizeError as e:
             problems.append(
                 StaticAnalyzeProblem(
