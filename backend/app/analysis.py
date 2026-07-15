@@ -73,8 +73,14 @@ def analyze_sql_static(sql: str, dialect: Optional[str], schema: Optional[Schema
                 if table_name not in schema:
                     raise OptimizeError(f"Table '{table_name}' does not exist in the schema.")
 
-            # Find column-level issues
-            expression = qualify(expression, schema=cast(dict[str, object], schema), dialect=dialect)
+            # Find column-level issues. sqlglot expects {table: {column: type}},
+            # so flatten the enriched schema (which carries type + PK/index) down
+            # to plain type strings for qualify.
+            qualify_schema = {
+                table: {col: str(props.get("type", "")) for col, props in cols.items()}
+                for table, cols in schema.items()
+            }
+            expression = qualify(expression, schema=cast(dict[str, object], qualify_schema), dialect=dialect)
         except OptimizeError as e:
             problems.append(
                 StaticAnalyzeProblem(
