@@ -1,7 +1,9 @@
+from fastapi.responses import JSONResponse
 import asyncio
 from typing import Optional
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
+import logging
 
 from fastapi import FastAPI, HTTPException, Query
 
@@ -21,6 +23,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     yield
 
 app = FastAPI(title="SQL Assistant API", lifespan=lifespan)
+
+logger = logging.getLogger("sql_assistant")
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request, e: Exception):
+    logger.exception("Unhandled exception on %s", request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Внутренняя ошибка сервера."},
+    )
 
 @app.post("/api/v1/sql/format", response_model=FormatResponse)
 async def format_sql(req: SQLRequest) -> FormatResponse:
