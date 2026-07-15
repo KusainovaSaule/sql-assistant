@@ -9,7 +9,7 @@ import sqlglot.expressions as exp
 from .cache import AsyncCacheProtocol, Schema
 
 from .connect import create_db_connection
-from .models import DBConnection, SchemaColumn, SchemaTable, StaticAnalyzeProblem
+from .models import DBConnection, StaticAnalyzeProblem
 
 
 def _to_schema(columns: Sequence[tuple[str, str, str]],

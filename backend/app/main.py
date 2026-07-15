@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException, Query
 from .dependencies import CacheDep
 from .cache import AsyncCacheProtocol, SQLiteCache
 from .format import format
-from .models import AIAnalyzeResponse, AIOptimizeResponse, FormatResponse, HistoryResponse, SchemaColumn, SchemaRequest, SchemaResponse, SchemaTable, StaticAnalyzeProblem, StaticAnalyzeResponse, SQLRequest
+from .models import AIAnalyzeResponse, AIOptimizeResponse, FormatResponse, HistoryResponse, SchemaRequest, SchemaResponse, SchemaTable, StaticAnalyzeProblem, StaticAnalyzeResponse, SQLRequest
 from .analysis import Schema, analyze_sql_static, get_schema
 from .gigachat_client import analyze_query_with_ai, optimize_query_with_ai
 from .schema_mapper import schema_to_tables
