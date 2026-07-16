@@ -136,8 +136,8 @@ async def create_db_connection(credentials: DBConnection, dialect: str) -> Async
     if dialect == 'postgres':
         try:
             connection = await asyncpg.connect(user=credentials.user, password=password, database=db, host=host, port=port)
-        except asyncpg.exceptions.PostgresError as e:
-            raise DBConnectionError(f"Could not connect to MySQL: {e}") from e
+        except (asyncpg.exceptions.PostgresError, OSError) as e:
+            raise DBConnectionError(f"Could not connect to PostgreSQL: {e}") from e
 
         wrapper = _DBWrapper(connection, dialect)
         try:
@@ -147,7 +147,7 @@ async def create_db_connection(credentials: DBConnection, dialect: str) -> Async
     elif dialect == 'mysql':
         try:
             connection = await mysql.connect(user=credentials.user, password=password, database=db, host=host, port=port)
-        except mysql.connection.Error as e:
+        except (mysql.connection.Error, OSError) as e:
             raise DBConnectionError(f"Could not connect to MySQL: {e}") from e
 
         wrapper = _DBWrapper(connection, dialect)
