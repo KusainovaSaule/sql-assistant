@@ -12,8 +12,9 @@ from .cache import AsyncCacheProtocol, SQLiteCache
 from .format import format
 from .models import AIAnalyzeResponse, AIOptimizeResponse, FormatResponse, HistoryResponse, SchemaRequest, SchemaResponse, SchemaTable, StaticAnalyzeProblem, StaticAnalyzeResponse, SQLRequest
 from .analysis import Schema, analyze_sql_static, get_schema
-from .gigachat_client import analyze_query_with_ai, optimize_query_with_ai
+from .gigachat_client import analyze_query_with_ai, optimize_query_with_ai, AIServiceError, AIResponseParseError
 from .schema_mapper import schema_to_tables
+from .connect import UnsupportedDialectError, DBConnectionError
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -42,7 +43,13 @@ async def format_sql(req: SQLRequest) -> FormatResponse:
 async def analyze_static(req: SQLRequest, cache: CacheDep) -> StaticAnalyzeResponse:
     schema: Optional[Schema] = None
     if (req.db and req.dialect):
-        schema = await get_schema(req.db, req.dialect, cache)
+        try:
+            schema = await get_schema(req.db, req.dialect, cache)
+        except UnsupportedDialectError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+        except DBConnectionError as e:
+            raise HTTPException(status_code=502, detail=f"Не удалось подключиться к БД: {e}") from e
+    
     problems: list[StaticAnalyzeProblem] = await asyncio.to_thread(analyze_sql_static, req.sql, req.dialect, schema)
     return StaticAnalyzeResponse(problems=problems)
 
@@ -50,37 +57,58 @@ async def analyze_static(req: SQLRequest, cache: CacheDep) -> StaticAnalyzeRespo
 async def analyze_ai(req: SQLRequest, cache: CacheDep) -> AIAnalyzeResponse:
     schema: Optional[Schema] = None
     if (req.db and req.dialect):
-        schema = await get_schema(req.db, req.dialect, cache)
+        try:
+            schema = await get_schema(req.db, req.dialect, cache)
+        except UnsupportedDialectError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+        except DBConnectionError as e:
+            raise HTTPException(status_code=502, detail=f"Не удалось подключиться к БД: {e}") from e
+
     static_problems: list[StaticAnalyzeProblem] = await asyncio.to_thread(analyze_sql_static, req.sql, req.dialect, schema)
 
     try:
         # Вызов GigaChat
         response: AIAnalyzeResponse = await analyze_query_with_ai(req.sql, schema, static_problems, cache)
         return response
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка GigaChat: {str(e)}")
+    except ValueError as e:
+        raise HTTPException(status_code=500, detail="AI-сервис не настроен на сервере.") from e
+    except AIServiceError as e:
+        raise HTTPException(status_code=502, detail=f"GigaChat недоступен: {e}") from e
+    except AIResponseParseError as e:
+        raise HTTPException(status_code=502, detail=f"GigaChat вернул некорректный ответ: {e}") from e
 
 @app.post("/api/v1/sql/optimize/ai", response_model=AIOptimizeResponse)
 async def optimize_ai(req: SQLRequest, cache: CacheDep) -> AIOptimizeResponse:
     schema: Optional[Schema] = None
     if (req.db and req.dialect):
-        schema = await get_schema(req.db, req.dialect, cache)
+        try:
+            schema = await get_schema(req.db, req.dialect, cache)
+        except UnsupportedDialectError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+        except DBConnectionError as e:
+            raise HTTPException(status_code=502, detail=f"Не удалось подключиться к БД: {e}") from e
 
     try:
         response: AIOptimizeResponse = await optimize_query_with_ai(req.sql, schema, cache)
         return response
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка GigaChat: {str(e)}")
+    except ValueError as e:
+        raise HTTPException(status_code=500, detail="AI-сервис не настроен на сервере.") from e
+    except AIServiceError as e:
+        raise HTTPException(status_code=502, detail=f"GigaChat недоступен: {e}") from e
+    except AIResponseParseError as e:
+        raise HTTPException(status_code=502, detail=f"GigaChat вернул некорректный ответ: {e}") from e
 
 @app.post("/api/v1/sql/schema", response_model=SchemaResponse)
 async def get_db_schema(req: SchemaRequest, cache: CacheDep) -> SchemaResponse:
     """Подключается к БД, извлекает схему для webview: таблицы, колонки, типы, ключи, индексы."""
     try:
         schema: Schema = await get_schema(req.db, req.dialect, cache)
-        tables: list[SchemaTable] = schema_to_tables(schema)
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка подключения к БД: {str(e)}")
+    except UnsupportedDialectError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except DBConnectionError as e:
+        raise HTTPException(status_code=502, detail=f"Не удалось подключиться к БД: {e}") from e
+    
+    tables: list[SchemaTable] = schema_to_tables(schema)
 
     return SchemaResponse(dbType=req.dialect, tables=tables)
 
