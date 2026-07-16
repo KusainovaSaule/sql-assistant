@@ -35,34 +35,30 @@ async def unhandled_exception_handler(request, e: Exception):
         content={"detail": "Внутренняя ошибка сервера."},
     )
 
+async def _get_schema_or_fail(req: SQLRequest, cache: CacheDep) -> Optional[Schema]:
+    if not (req.db and req.dialect):
+        return None
+    try:
+        return await get_schema(req.db, req.dialect, cache)
+    except UnsupportedDialectError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except DBConnectionError as e:
+        raise HTTPException(status_code=502, detail=f"Не удалось подключиться к БД: {e}") from e
+
 @app.post("/api/v1/sql/format", response_model=FormatResponse)
 async def format_sql(req: SQLRequest) -> FormatResponse:
     return await format(req)
 
 @app.post("/api/v1/sql/analyze/static", response_model=StaticAnalyzeResponse)
 async def analyze_static(req: SQLRequest, cache: CacheDep) -> StaticAnalyzeResponse:
-    schema: Optional[Schema] = None
-    if (req.db and req.dialect):
-        try:
-            schema = await get_schema(req.db, req.dialect, cache)
-        except UnsupportedDialectError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
-        except DBConnectionError as e:
-            raise HTTPException(status_code=502, detail=f"Не удалось подключиться к БД: {e}") from e
+    schema: Optional[Schema] = await _get_schema_or_fail(req, cache)
     
     problems: list[StaticAnalyzeProblem] = await asyncio.to_thread(analyze_sql_static, req.sql, req.dialect, schema)
     return StaticAnalyzeResponse(problems=problems)
 
 @app.post("/api/v1/sql/analyze/ai", response_model=AIAnalyzeResponse)
 async def analyze_ai(req: SQLRequest, cache: CacheDep) -> AIAnalyzeResponse:
-    schema: Optional[Schema] = None
-    if (req.db and req.dialect):
-        try:
-            schema = await get_schema(req.db, req.dialect, cache)
-        except UnsupportedDialectError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
-        except DBConnectionError as e:
-            raise HTTPException(status_code=502, detail=f"Не удалось подключиться к БД: {e}") from e
+    schema: Optional[Schema] = await _get_schema_or_fail(req, cache)
 
     static_problems: list[StaticAnalyzeProblem] = await asyncio.to_thread(analyze_sql_static, req.sql, req.dialect, schema)
 
@@ -79,14 +75,7 @@ async def analyze_ai(req: SQLRequest, cache: CacheDep) -> AIAnalyzeResponse:
 
 @app.post("/api/v1/sql/optimize/ai", response_model=AIOptimizeResponse)
 async def optimize_ai(req: SQLRequest, cache: CacheDep) -> AIOptimizeResponse:
-    schema: Optional[Schema] = None
-    if (req.db and req.dialect):
-        try:
-            schema = await get_schema(req.db, req.dialect, cache)
-        except UnsupportedDialectError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
-        except DBConnectionError as e:
-            raise HTTPException(status_code=502, detail=f"Не удалось подключиться к БД: {e}") from e
+    schema: Optional[Schema] = await _get_schema_or_fail(req, cache)
 
     try:
         response: AIOptimizeResponse = await optimize_query_with_ai(req.sql, schema, cache)
