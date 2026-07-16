@@ -1,3 +1,4 @@
+from pydantic import ValidationError
 import os
 import json
 from typing import Any, Optional
@@ -7,6 +8,10 @@ from gigachat import ChatCompletion, GigaChat
 from .cache import AsyncCacheProtocol
 from .models import AIAnalyzeResponse, AIOptimizeResponse, StaticAnalyzeProblem
 from .analysis import Schema
+
+
+class AIServiceError(Exception): pass
+class AIResponseParseError(Exception): pass
 
 load_dotenv()
 
@@ -30,9 +35,6 @@ def _build_analysis_prompt(sql: str, schema: Optional[Schema], static_problems: 
         prompt += f"Схема базы данных (таблицы и колонки):\n{schema_str}\n\n"
     else:
         prompt += "Схема базы данных неизвестна. Анализируй только по тексту запроса.\n\n"
-
-    # if schema_meta:
-    #     prompt += f"Существующие первичные ключи и индексы:\n{schema_meta}\n\n"
 
     if static_problems:
         problems_str = "\n".join([f"- {p.message}" for p in static_problems])
@@ -76,22 +78,30 @@ async def analyze_query_with_ai(sql: str, schema: Optional[Schema], static_probl
     prompt = _build_analysis_prompt(sql, schema, static_problems)
     
     async def _call_giga() -> str:
-        with _get_giga_client() as giga:
-            response: ChatCompletion = await giga.achat(prompt)
-            return response.choices[0].message.content
+        try:
+            with _get_giga_client() as giga:
+                response: ChatCompletion = await giga.achat(prompt)
+                return response.choices[0].message.content
+        except ValueError:
+            raise
+        except Exception as e:
+            raise AIServiceError(f"GigaChat request failed: {e}") from e
             
     raw_response = await _call_giga()
     clean_json = raw_response.strip().replace("```json", "").replace("```", "").strip()
 
-    ai_data: dict[str, Any] = json.loads(clean_json)
+    try:
+        ai_data: dict[str, Any] = json.loads(clean_json)
 
-    problems = [StaticAnalyzeProblem(**p) for p in ai_data.get("problems", [])]
-        
-    response = AIAnalyzeResponse(
-        logic_description=ai_data.get("logic_description", ""),
-        problems=problems,
-        recommendations=ai_data.get("recommendations", [])
-    )
+        problems = [StaticAnalyzeProblem(**p) for p in ai_data.get("problems", [])]
+            
+        response = AIAnalyzeResponse(
+            logic_description=ai_data.get("logic_description", ""),
+            problems=problems,
+            recommendations=ai_data.get("recommendations", [])
+        )
+    except (json.JSONDecodeError, ValidationError, TypeError) as e:
+        raise AIResponseParseError(f"GigaChat returned an unexpected response format: {e}") from e
     
     # Сохраняем в историю SQLite
     await cache.add_recommendation("analyze_ai", sql, response.model_dump())
